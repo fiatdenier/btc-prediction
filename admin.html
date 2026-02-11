@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Prediction Market</title>
+    <style>
+        :root {
+            --btc-orange: #f7931a;
+            --dark-bg: #1a1a1a;
+            --card-bg: #2a2a2a;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--dark-bg);
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--btc-orange);
+            border-bottom: 2px solid var(--btc-orange);
+            padding-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #404040;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--btc-orange);
+        }
+
+        .action-section {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid var(--btc-orange);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-primary {
+            background: var(--btc-orange);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #e88609;
+        }
+
+        .market-info {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            font-weight: bold;
+        }
+
+        .winner-list {
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .winner-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a1a;
+            border: 2px solid #404040;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            margin: 10px 0;
+        }
+
+        input[type="password"]:focus {
+            outline: none;
+            border-color: var(--btc-orange);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .alert-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .alert-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .alert-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        #login-section {
+            max-width: 400px;
+            margin: 100px auto;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 15px;
+            border: 2px solid var(--btc-orange);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section -->
+        <div id="login-section">
+            <h1 style="text-align: center; margin-top: 0;">Admin Login</h1>
+            <input type="password" id="admin-password" placeholder="Enter admin password">
+            <button class="btn btn-primary" style="width: 100%;" onclick="login()">LOGIN</button>
+            <div id="login-error" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- Dashboard (hidden until login) -->
+        <div id="dashboard" style="display: none;">
+            <h1>🔧 Admin Dashboard</h1>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Volume</div>
+                    <div class="stat-value" id="total-volume">0</div>
+                    <div style="color: #888; font-size: 0.85rem; margin-top: 5px;">sats</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Positions</div>
+                    <div class="stat-value" id="total-positions">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Confirmed</div>
+                    <div class="stat-value" id="confirmed-positions" style="color: var(--success);">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Unique Users</div>
+                    <div class="stat-value" id="unique-users">0</div>
+                </div>
+            </div>
+
+            <!-- Market Info -->
+            <div class="action-section">
+                <h2 style="margin-top: 0;">Market Status</h2>
+                <div class="market-info">
+                    <div class="info-row">
+                        <span class="info-label">Question</span>
+                        <span class="info-value" id="market-question">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value" id="market-status">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Deadline</span>
+                        <span class="info-value" id="market-deadline">Loading...</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">YES Pool</span>
+                        <span class="info-value" id="yes-pool">0 sats</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">NO Pool</span>
+                        <span class="info-value" id="no-pool">0 sats</span>
+                    </div>
+                    <div class="info-row" id="outcome-row" style="display: none;">
+                        <span class="info-label">Outcome</span>
+                        <span class="info-value" id="market-outcome">-</span>
+                    </div>
+                </div>
+
+                <div id="message-area"></div>
+
+                <div id="open-actions" style="margin-top: 20px;">
+                    <h3>Market Actions</h3>
+                    <button class="btn btn-danger" onclick="closeMarket()">
+                        🔒 CLOSE BETTING
+                    </button>
+                    <p style="color: #888; font-size: 0.9rem; margin-top: 10px;">
+                        This will prevent new positions from being created.
+                    </p>
+                </div>
+
+                <div id="closed-actions" style="margin-top: 20px; display: none;">
+                    <h3>Resolve Market</h3>
+                    <p style="color: #888; margin-bottom: 15px;">
+                        Select the final outcome. This action cannot be undone.
+                    </p>
+                    <button class="btn btn-success" onclick="resolveMarket('YES')">
+                        ✅ RESOLVE: YES
+                    </button>
+                    <button class="btn btn-danger" onclick="resolveMarket('NO')">
+                        ❌ RESOLVE: NO
+                    </button>
+                </div>
+
+                <div id="resolved-info" style="margin-top: 20px; display: none;">
+                    <h3>Resolution Details</h3>
+                    <div id="resolution-summary"></div>
+                    <div class="winner-list" id="winner-list"></div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="loadStats()">🔄 REFRESH DATA</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        let adminKey = '';
+
+        function login() {
+            adminKey = document.getElementById('admin-password').value;
+            
+            // Test with a simple stats call
+            loadStats().then(success => {
+                if (success) {
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                } else {
+                    document.getElementById('login-error').innerHTML = 
+                        '<div class="alert alert-danger">Invalid password</div>';
+                    adminKey = '';
+                }
+            });
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/stats?key=${adminKey}`);
+                
+                if (response.status === 403) {
+                    return false;
+                }
+
+                const data = await response.json();
+
+                if (data.error) {
+                    return false;
+                }
+
+                // Update stats
+                document.getElementById('total-volume').textContent = 
+                    data.total_volume.toLocaleString();
+                document.getElementById('total-positions').textContent = 
+                    data.total_positions;
+                document.getElementById('confirmed-positions').textContent = 
+                    data.confirmed_positions;
+                document.getElementById('unique-users').textContent = 
+                    data.unique_users;
+
+                // Update market info
+                const market = data.market;
+                document.getElementById('market-question').textContent = market.question;
+                document.getElementById('market-status').textContent = market.status.toUpperCase();
+                document.getElementById('market-deadline').textContent = 
+                    new Date(market.deadline).toLocaleString();
+                document.getElementById('yes-pool').textContent = 
+                    market.yes_pool.toLocaleString() + ' sats';
+                document.getElementById('no-pool').textContent = 
+                    market.no_pool.toLocaleString() + ' sats';
+
+                // Show appropriate actions
+                if (market.status === 'open') {
+                    document.getElementById('open-actions').style.display = 'block';
+                    document.getElementById('closed-actions').style.display = 'none';
+                    document.getElementById('resolved-info').style.display = 'none';
+                } else if (market.status === 'closed') {
+                    document.getElementById('open-actions').style.display = 'none';
+                    document.getElementById('closed-actions').style.display = 'block';
+                    document.getElementById('resolved-info').style.display = 'none';
+                } else if (market.status === 'resolved') {
+                    document.getElementById('open-actions').style.display = 'none';
+                    document.getElementById('closed-actions').style.display = 'none';
+                    document.getElementById('resolved-info').style.display = 'block';
+                    document.getElementById('outcome-row').style.display = 'flex';
+                    document.getElementById('market-outcome').textContent = market.outcome;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+                return false;
+            }
+        }
+
+        async function closeMarket() {
+            if (!confirm('Are you sure you want to close betting? No new positions will be allowed.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/close-market?key=${adminKey}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                showMessage(data.status, 'success');
+                await loadStats();
+            } catch (error) {
+                showMessage('Failed to close market', 'danger');
+            }
+        }
+
+        async function resolveMarket(outcome) {
+            const confirmMsg = `Are you sure you want to resolve the market as ${outcome}? This cannot be undone!`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/resolve-market?key=${adminKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ outcome: outcome })
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showMessage(data.error, 'danger');
+                    return;
+                }
+
+                // Show resolution summary
+                const summary = `
+                    <div class="market-info">
+                        <div class="info-row">
+                            <span class="info-label">Outcome</span>
+                            <span class="info-value" style="color: ${outcome === 'YES' ? 'var(--success)' : 'var(--danger)'};">${outcome}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Winners</span>
+                            <span class="info-value">${data.winners}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Total Payout</span>
+                            <span class="info-value">${data.total_payout.toLocaleString()} sats</span>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('resolution-summary').innerHTML = summary;
+
+                // Show winner list
+                if (data.winner_list && data.winner_list.length > 0) {
+                    const winnersHTML = data.winner_list.map(w => `
+                        <div class="winner-row">
+                            <span>${w.user_id}</span>
+                            <span style="color: var(--success);">${w.payout.toLocaleString()} sats</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('winner-list').innerHTML = winnersHTML;
+                }
+
+                showMessage('Market resolved successfully!', 'success');
+                await loadStats();
+            } catch (error) {
+                showMessage('Failed to resolve market', 'danger');
+            }
+        }
+
+        function showMessage(message, type) {
+            const alertClass = `alert-${type}`;
+            const html = `<div class="alert ${alertClass}">${message}</div>`;
+            document.getElementById('message-area').innerHTML = html;
+
+            setTimeout(() => {
+                document.getElementById('message-area').innerHTML = '';
+            }, 5000);
+        }
+
+        // Auto-refresh every 30 seconds when logged in
+        setInterval(() => {
+            if (adminKey) {
+                loadStats();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
