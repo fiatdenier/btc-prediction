@@ -534,7 +534,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
     <script>
         const API_BASE = 'https://predict.fiatdenier.com';
         
@@ -1034,12 +1034,17 @@ function showTicketAndInvoice(data) {
     `;
 
     // Generate QR code
-    QRCode.toCanvas(
-        document.getElementById('qr-code'),
-        data.invoice,
-        { width: 250, margin: 1 },
-        (error) => { if (error) console.error(error); }
-    );
+    const qrContainer = document.getElementById('qr-code');
+    qrContainer.innerHTML = ''; // Clear any previous QR code
+
+    new QRCode(qrContainer, {
+        text: data.invoice,
+        width: 250,
+        height: 250,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
 
     modal.style.display = 'block';
 
