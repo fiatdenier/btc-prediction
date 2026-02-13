@@ -766,6 +766,20 @@
 
             // Start checking for payment
             startPaymentCheck(data.position_id);
+
+            const ticketData = {
+                ticket_number: data.ticket_number || data.position_id,
+                signature: data.signature,
+                side: data.side,
+                amount: data.amount,
+                shares: data.shares,
+                timestamp: data.timestamp
+            };
+
+            const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+            myTickets.push(ticketData);
+            localStorage.setItem('my_tickets', JSON.stringify(myTickets));
+
         }
 
         function copyInvoice() {
