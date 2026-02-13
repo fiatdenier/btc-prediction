@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,8 +15,10 @@
             --border-color: #404040;
         }
 
-        * { box-sizing: border-box; }
-        
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--dark-bg);
@@ -74,9 +77,20 @@
             letter-spacing: 1px;
         }
 
-        .status-open { background: #22c55e; color: white; }
-        .status-closed { background: #f59e0b; color: white; }
-        .status-resolved { background: #6366f1; color: white; }
+        .status-open {
+            background: #22c55e;
+            color: white;
+        }
+
+        .status-closed {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-resolved {
+            background: #6366f1;
+            color: white;
+        }
 
         .deadline {
             margin-top: 15px;
@@ -107,7 +121,7 @@
 
         .option-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
         .option-card.yes {
@@ -130,8 +144,13 @@
             font-weight: bold;
         }
 
-        .yes .option-title { color: var(--yes-green); }
-        .no .option-title { color: var(--no-red); }
+        .yes .option-title {
+            color: var(--yes-green);
+        }
+
+        .no .option-title {
+            color: var(--no-red);
+        }
 
         .probability {
             font-size: 2.5rem;
@@ -141,7 +160,7 @@
         }
 
         .pool-info {
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             padding: 15px;
             border-radius: 8px;
             margin: 15px 0;
@@ -154,8 +173,13 @@
             font-size: 0.9rem;
         }
 
-        .pool-label { color: #888; }
-        .pool-value { font-weight: bold; }
+        .pool-label {
+            color: #888;
+        }
+
+        .pool-value {
+            font-weight: bold;
+        }
 
         .bet-input-group {
             margin: 20px 0;
@@ -253,7 +277,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0, 0, 0, 0.9);
             z-index: 1000;
             overflow-y: auto;
         }
@@ -318,7 +342,7 @@
             justify-content: space-between;
             padding: 12px;
             margin: 8px 0;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 6px;
             border-left: 4px solid transparent;
         }
@@ -345,7 +369,7 @@
             gap: 10px;
             padding: 12px;
             margin: 8px 0;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 6px;
             font-size: 0.9rem;
         }
@@ -379,8 +403,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .success-message {
@@ -402,6 +431,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -434,7 +464,7 @@
                             <span class="pool-value" id="yes-price">0.00</span>
                         </div>
                     </div>
-                    
+
                     <div class="bet-input-group">
                         <label>Amount (sats)</label>
                         <input type="number" class="bet-input" id="yes-amount" placeholder="1000" min="10">
@@ -471,7 +501,7 @@
                             <span class="pool-value" id="no-price">0.00</span>
                         </div>
                     </div>
-                    
+
                     <div class="bet-input-group">
                         <label>Amount (sats)</label>
                         <input type="number" class="bet-input" id="no-amount" placeholder="1000" min="10">
@@ -503,7 +533,8 @@
                     <strong>Total Exposure:</strong>
                     <span id="total-exposure">0 sats</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 1.1rem; margin-top: 10px;" id="winnings-row">
+                <div style="display: flex; justify-content: space-between; font-size: 1.1rem; margin-top: 10px;"
+                    id="winnings-row">
                     <strong>Potential Winnings:</strong>
                     <span id="potential-winnings" style="color: var(--yes-green);">0 sats</span>
                 </div>
@@ -524,7 +555,7 @@
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal()">&times;</span>
             <h2 style="margin-top: 0;">Pay Invoice</h2>
-            
+
             <div id="modal-content-area">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -535,9 +566,10 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
     <script>
         const API_BASE = 'https://predict.fiatdenier.com';
-        
+
         // User ID from localStorage or generate new
         function getUserID() {
             let userId = localStorage.getItem('user_id');
@@ -557,18 +589,17 @@
             try {
                 const response = await fetch(`${API_BASE}/market`);
                 marketData = await response.json();
-                
+
                 displayMarket();
                 updatePrices();
-                
+
                 // Show trading if market is open
                 if (marketData.status === 'open') {
                     document.getElementById('trading-section').style.display = 'block';
                 } else {
                     document.getElementById('trading-section').style.display = 'none';
                 }
-                
-                await loadUserPositions();
+
                 await loadLeaderboard();
             } catch (error) {
                 console.error('Failed to load market:', error);
@@ -578,7 +609,7 @@
         function displayMarket() {
             const statusClass = `status-${marketData.status}`;
             const deadline = new Date(marketData.deadline).toLocaleString();
-            
+
             let outcomeText = '';
             if (marketData.status === 'resolved') {
                 outcomeText = `<div style="margin-top: 20px; font-size: 1.2rem;">
@@ -586,7 +617,7 @@
                     ${marketData.outcome}</strong>
                 </div>`;
             }
-            
+
             document.getElementById('market-container').innerHTML = `
                 <div class="question-text">${marketData.question}</div>
                 <div class="market-status ${statusClass}">${marketData.status}</div>
@@ -599,21 +630,21 @@
         }
 
         function updatePrices() {
-            document.getElementById('yes-probability').textContent = 
+            document.getElementById('yes-probability').textContent =
                 marketData.yes_probability.toFixed(1) + '%';
-            document.getElementById('no-probability').textContent = 
+            document.getElementById('no-probability').textContent =
                 marketData.no_probability.toFixed(1) + '%';
-            
-            document.getElementById('yes-pool').textContent = 
+
+            document.getElementById('yes-pool').textContent =
                 marketData.yes_pool.toLocaleString() + ' sats';
-            document.getElementById('no-pool').textContent = 
+            document.getElementById('no-pool').textContent =
                 marketData.no_pool.toLocaleString() + ' sats';
-            
-            document.getElementById('yes-price').textContent = 
+
+            document.getElementById('yes-price').textContent =
                 marketData.yes_price.toFixed(4);
-            document.getElementById('no-price').textContent = 
+            document.getElementById('no-price').textContent =
                 marketData.no_price.toFixed(4);
-            
+
             // Update share estimates
             updateShareEstimate('yes');
             updateShareEstimate('no');
@@ -639,7 +670,7 @@
 
         async function placeBet(side) {
             const amount = parseInt(document.getElementById(`${side.toLowerCase()}-amount`).value);
-            
+
             if (!amount || amount < 10) {
                 alert('Minimum bet is 10 sats');
                 return;
@@ -682,13 +713,16 @@
             } catch (error) {
                 console.error('Error placing bet:', error);
                 alert('Failed to create position');
+                const btn = document.getElementById(`${side.toLowerCase()}-btn`);
+                btn.classList.remove('btn-disabled');
+                btn.textContent = `BUY ${side}`;
             }
         }
 
         function showInvoiceModal(data) {
             const modal = document.getElementById('invoice-modal');
             const content = document.getElementById('modal-content-area');
-            
+
             content.innerHTML = `
                 <div class="success-message">
                     Position created! Pay the invoice to confirm.
@@ -700,30 +734,33 @@
                     <div><strong>Shares:</strong> ${data.shares}</div>
                     <div><strong>Price:</strong> ${data.price}</div>
                 </div>
-
+    
                 <div id="qr-code" class="qr-placeholder"></div>
-
+    
                 <div class="invoice-box" id="invoice-text">${data.invoice}</div>
-
+    
                 <button class="action-btn" style="background: var(--btc-orange); margin-top: 20px;"
                         onclick="copyInvoice()">
                     📋 COPY INVOICE
                 </button>
-
+    
                 <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9rem;">
                     Checking for payment...
                 </div>
             `;
 
-            // Generate QR code
-            QRCode.toCanvas(
-                document.getElementById('qr-code'),
-                data.invoice,
-                { width: 250, margin: 1 },
-                (error) => {
-                    if (error) console.error(error);
-                }
-            );
+            // Generate QR code using QRCode constructor (not toCanvas)
+            const qrContainer = document.getElementById('qr-code');
+            qrContainer.innerHTML = ''; // Clear previous
+
+            new QRCode(qrContainer, {
+                text: data.invoice,
+                width: 250,
+                height: 250,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
 
             modal.style.display = 'block';
 
@@ -749,7 +786,7 @@
 
                     if (data.status === 'confirmed') {
                         clearInterval(checkInterval);
-                        
+
                         document.getElementById('modal-content-area').innerHTML = `
                             <div class="success-message">
                                 <h2 style="margin: 0;">✅ PAYMENT CONFIRMED!</h2>
@@ -776,50 +813,12 @@
         function closeModal() {
             document.getElementById('invoice-modal').style.display = 'none';
             if (checkInterval) clearInterval(checkInterval);
-            
+
             // Re-enable buttons
             document.getElementById('yes-btn').classList.remove('btn-disabled');
             document.getElementById('yes-btn').textContent = 'BUY YES';
             document.getElementById('no-btn').classList.remove('btn-disabled');
             document.getElementById('no-btn').textContent = 'BUY NO';
-        }
-
-        async function loadUserPositions() {
-            try {
-                const response = await fetch(`${API_BASE}/user-positions/${getUserID()}`);
-                const data = await response.json();
-
-                if (data.positions && data.positions.length > 0) {
-                    document.getElementById('user-positions').style.display = 'block';
-                    
-                    const positionsList = data.positions.map(pos => `
-                        <div class="position-row ${pos.side.toLowerCase()}-position">
-                            <div>
-                                <strong>${pos.side}</strong> • ${pos.amount} sats
-                            </div>
-                            <div style="text-align: right;">
-                                ${pos.shares} shares @ ${pos.price}
-                            </div>
-                        </div>
-                    `).join('');
-
-                    document.getElementById('positions-list').innerHTML = positionsList;
-                    document.getElementById('total-exposure').textContent = 
-                        data.total_exposure.toLocaleString() + ' sats';
-
-                    if (data.potential_winnings !== null) {
-                        document.getElementById('potential-winnings').textContent = 
-                            data.potential_winnings.toLocaleString() + ' sats';
-                        document.getElementById('winnings-row').style.display = 'flex';
-                    } else {
-                        document.getElementById('winnings-row').style.display = 'none';
-                    }
-                } else {
-                    document.getElementById('user-positions').style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Failed to load positions:', error);
-            }
         }
 
         async function loadLeaderboard() {
@@ -831,19 +830,21 @@
                     const leaderboardHTML = data.map((entry, index) => `
                         <div class="leaderboard-row">
                             <div class="rank">#${index + 1}</div>
-                            <div class="user-id">${entry.user}</div>
-                            <div style="color: var(--yes-green);">${entry.yes_amount} YES</div>
-                            <div style="color: var(--no-red);">${entry.no_amount} NO</div>
+                            <div class="user-id">${entry.ticket || entry.user || 'Unknown'}</div>
+                            <div style="color: var(--yes-green);">${entry.yes_amount || 0} YES</div>
+                            <div style="color: var(--no-red);">${entry.no_amount || 0} NO</div>
                         </div>
                     `).join('');
 
                     document.getElementById('leaderboard-list').innerHTML = leaderboardHTML;
                 } else {
-                    document.getElementById('leaderboard-list').innerHTML = 
+                    document.getElementById('leaderboard-list').innerHTML =
                         '<div style="text-align: center; color: #888;">No positions yet</div>';
                 }
             } catch (error) {
                 console.error('Failed to load leaderboard:', error);
+                document.getElementById('leaderboard-list').innerHTML =
+                    '<div style="text-align: center; color: #888;">Failed to load</div>';
             }
         }
 
@@ -854,387 +855,6 @@
         setInterval(loadMarket, 10000);
     </script>
 
-    <!-- Add this after the invoice modal in your prediction_market.html -->
-
-<!-- Ticket Display Modal -->
-<div id="ticket-modal" class="modal">
-    <div class="modal-content">
-        <span class="close-modal" onclick="closeTicketModal()">&times;</span>
-        <h2 style="margin-top: 0;">🎫 Your Ticket</h2>
-        
-        <div id="ticket-content-area">
-            <!-- Ticket will be displayed here -->
-        </div>
-    </div>
-</div>
-
-<!-- Claim Winnings Modal -->
-<div id="claim-modal" class="modal">
-    <div class="modal-content">
-        <span class="close-modal" onclick="closeClaimModal()">&times;</span>
-        <h2 style="margin-top: 0;">💰 Claim Your Winnings</h2>
-        
-        <div id="claim-content-area">
-            <!-- Claim form will be displayed here -->
-        </div>
-    </div>
-</div>
-
-<script>
-const API_BASE = 'https://predict.fiatdenier.com';
-
-let marketData = null;
-let currentTicket = null;
-
-// Save tickets to localStorage
-function saveTicket(ticketData) {
-    const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
-    myTickets.push({
-        ticket_number: ticketData.ticket_number,
-        side: ticketData.side,
-        amount: ticketData.amount,
-        shares: ticketData.shares,
-        timestamp: ticketData.timestamp,
-        signature: ticketData.signature
-    });
-    localStorage.setItem('my_tickets', JSON.stringify(myTickets));
-}
-
-// Load market data
-async function loadMarket() {
-    try {
-        const response = await fetch(`${API_BASE}/market`);
-        marketData = await response.json();
-        
-        displayMarket();
-        updatePrices();
-        
-        if (marketData.status === 'open') {
-            document.getElementById('trading-section').style.display = 'block';
-        }
-        
-        await loadMyTickets();
-        await loadLeaderboard();
-    } catch (error) {
-        console.error('Failed to load market:', error);
-    }
-}
-
-async function placeBet(side) {
-    const amount = parseInt(document.getElementById(`${side.toLowerCase()}-amount`).value);
-    
-    if (!amount || amount < 10) {
-        alert('Minimum bet is 10 sats');
-        return;
-    }
-
-    try {
-        const btn = document.getElementById(`${side.toLowerCase()}-btn`);
-        btn.classList.add('btn-disabled');
-        btn.textContent = 'CREATING...';
-
-        const response = await fetch(`${API_BASE}/create-position`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                side: side,
-                amount: amount
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            alert(data.error);
-            btn.classList.remove('btn-disabled');
-            btn.textContent = `BUY ${side}`;
-            return;
-        }
-
-        // Save ticket
-        saveTicket(data);
-        currentTicket = data;
-        
-        // Show ticket and invoice
-        showTicketAndInvoice(data);
-
-    } catch (error) {
-        console.error('Error placing bet:', error);
-        alert('Failed to create position');
-    }
-}
-
-function showTicketAndInvoice(data) {
-    const modal = document.getElementById('invoice-modal');
-    const content = document.getElementById('modal-content-area');
-    
-    content.innerHTML = `
-        <div class="success-message">
-            🎫 Ticket Created!
-        </div>
-        
-        <!-- Ticket Display -->
-        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%); 
-                    border: 2px solid var(--btc-orange); 
-                    border-radius: 12px; 
-                    padding: 25px; 
-                    margin: 20px 0;
-                    text-align: center;">
-            
-            <div style="font-size: 2rem; font-weight: bold; color: var(--btc-orange); margin-bottom: 15px; font-family: 'Courier New', monospace; letter-spacing: 3px;">
-                ${data.ticket_number}
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; text-align: left;">
-                <div>
-                    <div style="color: #888; font-size: 0.8rem;">POSITION</div>
-                    <div style="font-size: 1.2rem; font-weight: bold; color: ${data.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">${data.side}</div>
-                </div>
-                <div>
-                    <div style="color: #888; font-size: 0.8rem;">AMOUNT</div>
-                    <div style="font-size: 1.2rem; font-weight: bold;">${data.amount} sats</div>
-                </div>
-                <div>
-                    <div style="color: #888; font-size: 0.8rem;">SHARES</div>
-                    <div style="font-size: 1.2rem; font-weight: bold;">${data.shares}</div>
-                </div>
-                <div>
-                    <div style="color: #888; font-size: 0.8rem;">PRICE</div>
-                    <div style="font-size: 1.2rem; font-weight: bold;">${data.price}</div>
-                </div>
-            </div>
-            
-            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040; font-size: 0.7rem; color: #666; font-family: 'Courier New', monospace; word-break: break-all;">
-                SIG: ${data.signature.substring(0, 32)}...
-            </div>
-        </div>
-
-        <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid var(--btc-orange); border-radius: 8px; padding: 15px; margin: 15px 0;">
-            <strong>⚠️ SAVE YOUR TICKET NUMBER!</strong>
-            <p style="margin: 10px 0 0 0; font-size: 0.9rem;">
-                Write down <code style="background: #000; padding: 2px 6px; border-radius: 3px;">${data.ticket_number}</code> 
-                to claim your winnings later. This ticket is saved in your browser, but it's safer to keep a backup.
-            </p>
-        </div>
-
-        <h3 style="margin-top: 30px;">Pay Invoice to Activate Ticket</h3>
-
-        <div id="qr-code" class="qr-placeholder"></div>
-
-        <div class="invoice-box" id="invoice-text">${data.invoice}</div>
-
-        <button class="action-btn" style="background: var(--btc-orange); margin-top: 20px;"
-                onclick="copyInvoice()">
-            📋 COPY INVOICE
-        </button>
-
-        <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9rem;">
-            Checking for payment...
-        </div>
-    `;
-
-    // Generate QR code
-    const qrContainer = document.getElementById('qr-code');
-    qrContainer.innerHTML = ''; // Clear any previous QR code
-
-    new QRCode(qrContainer, {
-        text: data.invoice,
-        width: 250,
-        height: 250,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-    });
-
-    modal.style.display = 'block';
-
-    // Start checking for payment
-    startTicketCheck(data.ticket_number);
-}
-
-function startTicketCheck(ticketNumber) {
-    if (checkInterval) clearInterval(checkInterval);
-
-    checkInterval = setInterval(async () => {
-        try {
-            const response = await fetch(`${API_BASE}/confirm-ticket/${ticketNumber}`, {
-                method: 'POST'
-            });
-            const data = await response.json();
-
-            if (data.status === 'confirmed') {
-                clearInterval(checkInterval);
-                
-                document.getElementById('modal-content-area').innerHTML = `
-                    <div class="success-message">
-                        <h2 style="margin: 0;">✅ TICKET ACTIVATED!</h2>
-                        <p style="margin: 10px 0 0 0;">Your ticket #${ticketNumber} is now active.</p>
-                    </div>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <div style="font-size: 1.5rem; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 2px; color: var(--btc-orange);">
-                            ${ticketNumber}
-                        </div>
-                        <div style="margin-top: 15px; color: #888;">
-                            ${data.ticket.side} • ${data.ticket.shares} shares
-                        </div>
-                    </div>
-                `;
-
-                setTimeout(() => {
-                    closeModal();
-                    loadMarket();
-                }, 3000);
-            }
-        } catch (error) {
-            console.error('Ticket check failed:', error);
-        }
-    }, 2000);
-}
-
-async function loadMyTickets() {
-    const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
-    
-    if (myTickets.length === 0) {
-        document.getElementById('user-positions').style.display = 'none';
-        return;
-    }
-
-    document.getElementById('user-positions').style.display = 'block';
-    
-    let totalExposure = 0;
-    let potentialWinnings = 0;
-    let positionsHTML = '';
-
-    for (const ticket of myTickets) {
-        // Verify ticket with backend
-        try {
-            const response = await fetch(`${API_BASE}/verify-ticket/${ticket.ticket_number}`);
-            const data = await response.json();
-
-            if (data.valid) {
-                const ticketInfo = data.ticket;
-                totalExposure += ticketInfo.amount;
-                
-                if (data.potential_payout > 0) {
-                    potentialWinnings += data.potential_payout;
-                }
-
-                const statusBadge = ticketInfo.status === 'confirmed' ? 
-                    '<span style="color: var(--yes-green);">✓ Active</span>' : 
-                    '<span style="color: #888;">⏳ Pending</span>';
-
-                const claimButton = (data.market_status === 'resolved' && 
-                                   data.potential_payout > 0 && 
-                                   !ticketInfo.claimed) ?
-                    `<button onclick="showClaimModal('${ticket.ticket_number}')" 
-                             style="padding: 5px 10px; background: var(--yes-green); border: none; border-radius: 4px; color: white; cursor: pointer; margin-top: 5px;">
-                        Claim ${data.potential_payout} sats
-                     </button>` : '';
-
-                positionsHTML += `
-                    <div class="position-row ${ticketInfo.side.toLowerCase()}-position">
-                        <div>
-                            <strong>Ticket: ${ticket.ticket_number}</strong> ${statusBadge}
-                            <br>
-                            <span style="color: #888; font-size: 0.85rem;">
-                                ${ticketInfo.side} • ${ticketInfo.amount} sats • ${ticketInfo.shares} shares
-                            </span>
-                            ${claimButton}
-                        </div>
-                        <div style="text-align: right; font-size: 0.85rem; color: #888;">
-                            ${new Date(ticketInfo.timestamp * 1000).toLocaleString()}
-                        </div>
-                    </div>
-                `;
-            }
-        } catch (error) {
-            console.error('Failed to verify ticket:', error);
-        }
-    }
-
-    document.getElementById('positions-list').innerHTML = positionsHTML;
-    document.getElementById('total-exposure').textContent = totalExposure.toLocaleString() + ' sats';
-
-    if (potentialWinnings > 0) {
-        document.getElementById('potential-winnings').textContent = potentialWinnings.toLocaleString() + ' sats';
-        document.getElementById('winnings-row').style.display = 'flex';
-    } else {
-        document.getElementById('winnings-row').style.display = 'none';
-    }
-}
-
-function showClaimModal(ticketNumber) {
-    const modal = document.getElementById('claim-modal');
-    const content = document.getElementById('claim-content-area');
-
-    content.innerHTML = `
-        <p>Enter your Lightning address to receive your winnings:</p>
-        
-        <input type="text" 
-               id="lightning-address" 
-               placeholder="you@getalby.com or LNURL"
-               style="width: 100%; padding: 12px; background: #1a1a1a; border: 2px solid #404040; 
-                      border-radius: 8px; color: white; font-size: 1rem; margin: 15px 0;">
-
-        <button class="action-btn btn-success" onclick="submitClaim('${ticketNumber}')">
-            Claim Winnings
-        </button>
-
-        <div id="claim-status" style="margin-top: 15px;"></div>
-    `;
-
-    modal.style.display = 'block';
-}
-
-async function submitClaim(ticketNumber) {
-    const lightningAddress = document.getElementById('lightning-address').value;
-
-    if (!lightningAddress) {
-        alert('Please enter a Lightning address');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/claim-winnings`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ticket_number: ticketNumber,
-                lightning_address: lightningAddress
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            document.getElementById('claim-status').innerHTML = 
-                `<div class="error-message">${data.error}</div>`;
-        } else {
-            document.getElementById('claim-status').innerHTML = 
-                `<div class="success-message">${data.message}</div>`;
-            
-            setTimeout(() => {
-                closeClaimModal();
-                loadMyTickets();
-            }, 3000);
-        }
-    } catch (error) {
-        console.error('Claim failed:', error);
-        alert('Failed to submit claim');
-    }
-}
-
-function closeClaimModal() {
-    document.getElementById('claim-modal').style.display = 'none';
-}
-
-function closeTicketModal() {
-    document.getElementById('ticket-modal').style.display = 'none';
-}
-
-// Rest of your existing JavaScript code...
-// (displayMarket, updatePrices, loadLeaderboard, etc.)
-
-</script>
 </body>
+
 </html>
