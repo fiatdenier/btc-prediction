@@ -875,13 +875,15 @@
 
                 if (data.length > 0) {
                     const leaderboardHTML = data.map((entry, index) => `
-                        <div class="leaderboard-row">
-                            <div class="rank">#${index + 1}</div>
-                            <div class="user-id">${entry.ticket || entry.user || 'Unknown'}</div>
-                            <div style="color: var(--yes-green);">${entry.yes_amount || 0} YES</div>
-                            <div style="color: var(--no-red);">${entry.no_amount || 0} NO</div>
-                        </div>
-                    `).join('');
+                <div class="leaderboard-row">
+                    <div class="rank">#${index + 1}</div>
+                    <div class="user-id">${entry.ticket || entry.user || 'Unknown'}</div>
+                    <div style="color: ${entry.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">
+                        ${entry.amount} ${entry.side}
+                    </div>
+                    <div style="color: #888; font-size: 0.85rem;">${entry.shares} shares</div>
+                </div>
+            `).join('');
 
                     document.getElementById('leaderboard-list').innerHTML = leaderboardHTML;
                 } else {
