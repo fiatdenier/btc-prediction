@@ -550,6 +550,48 @@
         </div>
     </div>
 
+    <!-- Claim Winnings Section (shows when market is resolved) -->
+    <div id="claim-section" style="display: none;">
+        <div class="section"
+            style="background: var(--card-bg); border: 2px solid var(--yes-green); border-radius: 12px; padding: 30px; margin-top: 30px;">
+            <h2 style="margin-top: 0;">💰 Claim Your Winnings</h2>
+
+            <p style="color: #888; margin-bottom: 20px;">
+                The market has been resolved! If you have a winning ticket, enter your details below to claim your
+                payout.
+            </p>
+
+            <div
+                style="background: rgba(255, 165, 0, 0.1); border: 1px solid var(--btc-orange); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <strong>⚠️ Important:</strong>
+                <ul style="margin: 10px 0 0 20px; color: #888;">
+                    <li>You need BOTH your ticket number AND claim key</li>
+                    <li>Payouts are 95% of gross winnings (5% house fee)</li>
+                    <li>Each ticket can only be claimed once</li>
+                </ul>
+            </div>
+
+            <input type="text" id="claim-ticket-number" placeholder="Ticket Number (e.g., ABC123XY)" style="width: 100%; padding: 12px; background: #1a1a1a; border: 2px solid #404040; 
+                      border-radius: 8px; color: white; font-size: 1rem; margin-bottom: 15px;">
+
+            <input type="text" id="claim-signature" placeholder="Claim Key (your secret signature)" style="width: 100%; padding: 12px; background: #1a1a1a; border: 2px solid #404040; 
+                      border-radius: 8px; color: white; font-size: 1rem; margin-bottom: 15px; 
+                      font-family: 'Courier New', monospace;">
+
+            <input type="text" id="claim-lightning-address" placeholder="Lightning Address (you@getalby.com) or Invoice"
+                style="width: 100%; padding: 12px; background: #1a1a1a; border: 2px solid #404040; 
+                      border-radius: 8px; color: white; font-size: 1rem; margin-bottom: 20px;">
+
+            <button class="action-btn"
+                style="background: var(--yes-green); width: 100%; padding: 15px; font-size: 1.1rem;"
+                onclick="claimWinnings()">
+                💸 CLAIM WINNINGS
+            </button>
+
+            <div id="claim-status" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
     <!-- Invoice Modal -->
     <div id="invoice-modal" class="modal">
         <div class="modal-content">
@@ -568,7 +610,7 @@
     <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
     <script>
         const API_BASE = 'https://predict.fiatdenier.com';
-    
+
         function getUserID() {
             let userId = localStorage.getItem('user_id');
             if (!userId) {
@@ -577,36 +619,128 @@
             }
             return userId;
         }
-    
+
         let marketData = null;
         let currentPositionId = null;
         let currentTicketData = null;
         let checkInterval = null;
-    
+
+        async function claimWinnings() {
+            const ticketNumber = document.getElementById('claim-ticket-number').value.trim();
+            const signature = document.getElementById('claim-signature').value.trim();
+            const lightningAddress = document.getElementById('claim-lightning-address').value.trim();
+
+            if (!ticketNumber) {
+                alert('Please enter your ticket number');
+                return;
+            }
+
+            if (!signature) {
+                alert('Please enter your claim key (signature)');
+                return;
+            }
+
+            if (!lightningAddress) {
+                alert('Please enter your Lightning address or invoice');
+                return;
+            }
+
+            const statusDiv = document.getElementById('claim-status');
+            statusDiv.innerHTML = '<div style="text-align: center; color: #888;">Processing claim...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/claim-winnings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_number: ticketNumber,
+                        signature: signature,
+                        lightning_address: lightningAddress
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    statusDiv.innerHTML = `
+                <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--no-red); 
+                            border-radius: 8px; padding: 15px;">
+                    <strong>❌ Claim Failed</strong><br>
+                    ${data.error}
+                </div>
+            `;
+                } else {
+                    statusDiv.innerHTML = `
+                <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid var(--yes-green); 
+                            border-radius: 8px; padding: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: var(--yes-green);">✅ CLAIM SUCCESSFUL!</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 15px;">
+                        <div style="color: #888;">Gross Payout:</div>
+                        <div style="font-weight: bold;">${data.gross_payout} sats</div>
+                        
+                        <div style="color: #888;">House Fee (${data.house_rake_percentage}%):</div>
+                        <div style="color: var(--no-red);">-${data.house_cut} sats</div>
+                        
+                        <div style="color: #888; border-top: 1px solid #404040; padding-top: 10px;">
+                            Net Payment:
+                        </div>
+                        <div style="font-weight: bold; color: var(--yes-green); font-size: 1.3rem; border-top: 1px solid #404040; padding-top: 10px;">
+                            ${data.net_payout} sats
+                        </div>
+                    </div>
+                    
+                    <p style="margin: 15px 0 0 0; color: #888; font-size: 0.9rem;">
+                        ${data.message}
+                    </p>
+                </div>
+            `;
+
+                    // Clear inputs
+                    document.getElementById('claim-ticket-number').value = '';
+                    document.getElementById('claim-signature').value = '';
+                    document.getElementById('claim-lightning-address').value = '';
+                }
+            } catch (error) {
+                console.error('Claim failed:', error);
+                statusDiv.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--no-red); 
+                        border-radius: 8px; padding: 15px;">
+                <strong>❌ Error:</strong> Failed to process claim. Please try again.
+            </div>
+        `;
+            }
+        }
+
         async function loadMarket() {
             try {
                 const response = await fetch(`${API_BASE}/market`);
                 marketData = await response.json();
-    
+
                 displayMarket();
                 updatePrices();
-    
+
                 if (marketData.status === 'open') {
                     document.getElementById('trading-section').style.display = 'block';
+                    document.getElementById('claim-section').style.display = 'none';
+                } else if (marketData.status === 'resolved') {
+                    document.getElementById('trading-section').style.display = 'none';
+                    document.getElementById('claim-section').style.display = 'block';
                 } else {
                     document.getElementById('trading-section').style.display = 'none';
+                    document.getElementById('claim-section').style.display = 'none';
                 }
-    
+
                 await loadLeaderboard();
             } catch (error) {
                 console.error('Failed to load market:', error);
             }
         }
-    
+
         function displayMarket() {
             const statusClass = `status-${marketData.status}`;
             const deadline = new Date(marketData.deadline).toLocaleString();
-    
+
             let outcomeText = '';
             if (marketData.status === 'resolved') {
                 outcomeText = `<div style="margin-top: 20px; font-size: 1.2rem;">
@@ -614,7 +748,7 @@
                     ${marketData.outcome}</strong>
                 </div>`;
             }
-    
+
             document.getElementById('market-container').innerHTML = `
                 <div class="question-text">${marketData.question}</div>
                 <div class="market-status ${statusClass}">${marketData.status}</div>
@@ -625,62 +759,62 @@
                 ${outcomeText}
             `;
         }
-    
+
         function updatePrices() {
             document.getElementById('yes-probability').textContent =
                 marketData.yes_probability.toFixed(1) + '%';
             document.getElementById('no-probability').textContent =
                 marketData.no_probability.toFixed(1) + '%';
-    
+
             document.getElementById('yes-pool').textContent =
                 marketData.yes_pool.toLocaleString() + ' sats';
             document.getElementById('no-pool').textContent =
                 marketData.no_pool.toLocaleString() + ' sats';
-    
+
             document.getElementById('yes-price').textContent =
                 marketData.yes_price.toFixed(4);
             document.getElementById('no-price').textContent =
                 marketData.no_price.toFixed(4);
-    
+
             updateShareEstimate('yes');
             updateShareEstimate('no');
         }
-    
+
         function setAmount(side, amount) {
             document.getElementById(`${side}-amount`).value = amount;
             updateShareEstimate(side);
         }
-    
+
         function updateShareEstimate(side) {
             const amount = parseInt(document.getElementById(`${side}-amount`).value) || 0;
             const price = marketData[`${side}_price`];
             const shares = amount > 0 ? (amount / price).toFixed(2) : 0;
             document.getElementById(`${side}-shares-amount`).textContent = shares;
         }
-    
+
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('yes-amount').addEventListener('input', () => updateShareEstimate('yes'));
             document.getElementById('no-amount').addEventListener('input', () => updateShareEstimate('no'));
         });
-    
+
         async function placeBet(side) {
             const amount = parseInt(document.getElementById(`${side.toLowerCase()}-amount`).value);
-    
+
             if (!amount || amount < 10) {
                 alert('Minimum bet is 10 sats');
                 return;
             }
-    
+
             if (marketData.status !== 'open') {
                 alert('Market is not open for betting');
                 return;
             }
-    
+
             try {
                 const btn = document.getElementById(`${side.toLowerCase()}-btn`);
                 btn.classList.add('btn-disabled');
                 btn.textContent = 'CREATING...';
-    
+
                 const response = await fetch(`${API_BASE}/create-position`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -690,19 +824,19 @@
                         amount: amount
                     })
                 });
-    
+
                 const data = await response.json();
-    
+
                 if (data.error) {
                     alert(data.error);
                     btn.classList.remove('btn-disabled');
                     btn.textContent = `BUY ${side}`;
                     return;
                 }
-    
+
                 currentPositionId = data.position_id;
                 showInvoiceModal(data);
-    
+
             } catch (error) {
                 console.error('Error placing bet:', error);
                 alert('Failed to create position');
@@ -711,11 +845,11 @@
                 btn.textContent = `BUY ${side}`;
             }
         }
-    
+
         function showInvoiceModal(data) {
             const modal = document.getElementById('invoice-modal');
             const content = document.getElementById('modal-content-area');
-    
+
             currentTicketData = {
                 ticket_number: data.ticket_number || data.position_id,
                 signature: data.signature,
@@ -725,11 +859,11 @@
                 price: data.price,
                 timestamp: data.timestamp
             };
-    
+
             const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
             myTickets.push(currentTicketData);
             localStorage.setItem('my_tickets', JSON.stringify(myTickets));
-    
+
             content.innerHTML = `
                 <div class="success-message">
                     Position created! Pay the invoice to confirm.
@@ -755,10 +889,10 @@
                     Checking for payment...
                 </div>
             `;
-    
+
             const qrContainer = document.getElementById('qr-code');
             qrContainer.innerHTML = '';
-    
+
             new QRCode(qrContainer, {
                 text: data.invoice,
                 width: 250,
@@ -767,166 +901,183 @@
                 colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.H
             });
-    
+
             modal.style.display = 'block';
             startPaymentCheck(data.position_id || data.ticket_number);
         }
-    
+
         function copyInvoice() {
             const invoice = document.getElementById('invoice-text').textContent;
             navigator.clipboard.writeText(invoice);
             alert('Invoice copied to clipboard!');
         }
-    
+
         function startPaymentCheck(positionId) {
             if (checkInterval) clearInterval(checkInterval);
-    
+
             checkInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`${API_BASE}/confirm-position/${positionId}`, {
                         method: 'POST'
                     });
                     const data = await response.json();
-    
-                    // Handle both "confirmed" and "already_confirmed" status
+
                     if (data.status === 'confirmed' || data.status === 'already_confirmed') {
                         clearInterval(checkInterval);
-    
-                        const potentialPayout = Math.floor(currentTicketData.shares);
-                        const potentialProfit = potentialPayout - currentTicketData.amount;
-    
+
+                        // Use net_payout if available, otherwise calculate it
+                        const houseRake = currentTicketData.house_rake || 5;
+                        const grossPayout = Math.floor(currentTicketData.shares);
+                        const netPayout = Math.floor(grossPayout * (1 - houseRake / 100));
+                        const houseCut = grossPayout - netPayout;
+                        const potentialProfit = netPayout - currentTicketData.amount;
+
                         document.getElementById('modal-content-area').innerHTML = `
-                            <div class="success-message">
-                                <h2 style="margin: 0;">✅ PAYMENT CONFIRMED!</h2>
-                                <p style="margin: 10px 0 0 0;">Your ticket has been activated.</p>
+                    <div class="success-message">
+                        <h2 style="margin: 0;">✅ PAYMENT CONFIRMED!</h2>
+                        <p style="margin: 10px 0 0 0;">Your ticket has been activated.</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%); 
+                                border: 2px solid var(--btc-orange); 
+                                border-radius: 12px; 
+                                padding: 25px; 
+                                margin: 20px 0;
+                                text-align: center;">
+                        
+                        <div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;">YOUR TICKET NUMBER</div>
+                        <div style="font-size: 2.5rem; font-weight: bold; color: var(--btc-orange); 
+                                    margin-bottom: 15px; font-family: 'Courier New', monospace; 
+                                    letter-spacing: 3px;">
+                            ${positionId}
+                        </div>
+                        
+                        <div style="font-size: 0.8rem; color: #888; margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">
+                            CLAIM KEY (Keep Secret!)
+                        </div>
+                        <div style="font-family: 'Courier New', monospace; font-size: 0.7rem; 
+                                    color: #666; word-break: break-all; margin-top: 10px; 
+                                    background: #000; padding: 10px; border-radius: 6px; max-height: 80px; overflow-y: auto;">
+                            ${currentTicketData.signature}
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; 
+                                    margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040; 
+                                    text-align: left;">
+                            <div>
+                                <div style="color: #888; font-size: 0.8rem;">SIDE</div>
+                                <div style="font-size: 1.2rem; font-weight: bold; 
+                                            color: ${currentTicketData.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">
+                                    ${currentTicketData.side}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8rem;">AMOUNT</div>
+                                <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.amount} sats</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8rem;">SHARES</div>
+                                <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.shares}</div>
+                            </div>
+                            <div>
+                                <div style="color: #888; font-size: 0.8rem;">PRICE</div>
+                                <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.price.toFixed(4)}</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px; padding: 15px; border-top: 1px solid #404040; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+                            <div style="color: #888; font-size: 0.8rem; margin-bottom: 8px;">POTENTIAL PAYOUT (if ${currentTicketData.side} wins)</div>
+                            
+                            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px; text-align: left; margin-top: 10px;">
+                                <div style="color: #888; font-size: 0.85rem;">Gross:</div>
+                                <div style="font-weight: bold;">${grossPayout} sats</div>
+                                
+                                <div style="color: #888; font-size: 0.85rem;">House Fee (${houseRake}%):</div>
+                                <div style="color: var(--no-red); font-size: 0.9rem;">-${houseCut} sats</div>
+                                
+                                <div style="color: #888; font-size: 0.85rem; border-top: 1px solid #404040; padding-top: 8px;">Net Payout:</div>
+                                <div style="font-weight: bold; color: var(--yes-green); font-size: 1.3rem; border-top: 1px solid #404040; padding-top: 8px;">
+                                    ${netPayout} sats
+                                </div>
                             </div>
                             
-                            <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%); 
-                                        border: 2px solid var(--btc-orange); 
-                                        border-radius: 12px; 
-                                        padding: 25px; 
-                                        margin: 20px 0;
-                                        text-align: center;">
-                                
-                                <div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;">YOUR TICKET NUMBER</div>
-                                <div style="font-size: 2.5rem; font-weight: bold; color: var(--btc-orange); 
-                                            margin-bottom: 15px; font-family: 'Courier New', monospace; 
-                                            letter-spacing: 3px;">
-                                    ${positionId}
-                                </div>
-                                
-                                <div style="font-size: 0.8rem; color: #888; margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">
-                                    CLAIM KEY (Keep Secret!)
-                                </div>
-                                <div style="font-family: 'Courier New', monospace; font-size: 0.7rem; 
-                                            color: #666; word-break: break-all; margin-top: 10px; 
-                                            background: #000; padding: 10px; border-radius: 6px; max-height: 80px; overflow-y: auto;">
-                                    ${currentTicketData.signature}
-                                </div>
-                                
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; 
-                                            margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040; 
-                                            text-align: left;">
-                                    <div>
-                                        <div style="color: #888; font-size: 0.8rem;">SIDE</div>
-                                        <div style="font-size: 1.2rem; font-weight: bold; 
-                                                    color: ${currentTicketData.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">
-                                            ${currentTicketData.side}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div style="color: #888; font-size: 0.8rem;">AMOUNT</div>
-                                        <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.amount} sats</div>
-                                    </div>
-                                    <div>
-                                        <div style="color: #888; font-size: 0.8rem;">SHARES</div>
-                                        <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.shares}</div>
-                                    </div>
-                                    <div>
-                                        <div style="color: #888; font-size: 0.8rem;">PRICE</div>
-                                        <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.price.toFixed(4)}</div>
-                                    </div>
-                                </div>
-    
-                                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">
-                                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 8px;">POTENTIAL PAYOUT (if ${currentTicketData.side} wins)</div>
-                                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--yes-green);">
-                                        ${potentialPayout} sats
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: ${potentialProfit >= 0 ? 'var(--yes-green)' : 'var(--no-red)'}; margin-top: 5px;">
-                                        Profit: ${potentialProfit >= 0 ? '+' : ''}${potentialProfit} sats
-                                    </div>
-                                </div>
+                            <div style="font-size: 0.9rem; color: ${potentialProfit >= 0 ? 'var(--yes-green)' : 'var(--no-red)'}; margin-top: 10px;">
+                                Your Profit: ${potentialProfit >= 0 ? '+' : ''}${potentialProfit} sats
                             </div>
-    
-                            <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid var(--btc-orange); 
-                                        border-radius: 8px; padding: 15px; margin: 15px 0;">
-                                <strong>⚠️ SAVE YOUR TICKET INFO!</strong>
-                                <p style="margin: 10px 0 0 0; font-size: 0.9rem;">
-                                    You need BOTH the ticket number AND claim key to collect winnings. 
-                                    The claim key proves you own this ticket. <strong>Keep it secret!</strong>
-                                </p>
-                            </div>
-    
-                            <button class="action-btn" style="background: var(--btc-orange); margin-top: 15px;"
-                                    onclick="copyTicketDetails('${positionId}', '${currentTicketData.signature}', ${currentTicketData.amount}, ${currentTicketData.shares}, ${potentialPayout}, '${currentTicketData.side}')">
-                                📋 COPY FULL TICKET INFO
-                            </button>
-    
-                            <button class="action-btn" style="background: var(--yes-green); margin-top: 10px;"
-                                    onclick="closeModal(); loadMarket();">
-                                ✓ DONE
-                            </button>
-                        `;
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid var(--btc-orange); 
+                                border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <strong>⚠️ SAVE YOUR TICKET INFO!</strong>
+                        <p style="margin: 10px 0 0 0; font-size: 0.9rem;">
+                            You need BOTH the ticket number AND claim key to collect winnings. 
+                            The claim key proves you own this ticket. <strong>Keep it secret!</strong>
+                        </p>
+                    </div>
+
+                    <button class="action-btn" style="background: var(--btc-orange); margin-top: 15px;"
+                            onclick="copyTicketDetails('${positionId}', '${currentTicketData.signature}', ${currentTicketData.amount}, ${currentTicketData.shares}, ${netPayout}, '${currentTicketData.side}', ${grossPayout}, ${houseCut}, ${houseRake})">
+                        📋 COPY FULL TICKET INFO
+                    </button>
+
+                    <button class="action-btn" style="background: var(--yes-green); margin-top: 10px;"
+                            onclick="closeModal(); loadMarket();">
+                        ✓ DONE
+                    </button>
+                `;
                     }
                 } catch (error) {
                     console.error('Payment check failed:', error);
                 }
             }, 2000);
         }
-    
-        function copyTicketDetails(ticketNumber, signature, amount, shares, payout, side) {
+
+        function copyTicketDetails(ticketNumber, signature, amount, shares, netPayout, side, grossPayout, houseCut, houseRake) {
             const fullTicket = `🎫 PREDICTION MARKET TICKET
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    TICKET NUMBER: ${ticketNumber}
-    
-    BET DETAILS:
-      Side:            ${side}
-      Amount Paid:     ${amount} sats
-      Shares:          ${shares}
-      
-    POTENTIAL PAYOUT (if ${side} wins):
-      Payout:          ${payout} sats
-      Profit:          ${payout - amount >= 0 ? '+' : ''}${payout - amount} sats
-    
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    CLAIM KEY (keep secret):
-    ${signature}
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    ⚠️  Save both ticket number AND claim key!
-    You need BOTH to claim your winnings.
-    `;
-            
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TICKET NUMBER: ${ticketNumber}
+
+BET DETAILS:
+  Side:            ${side}
+  Amount Paid:     ${amount} sats
+  Shares:          ${shares}
+  
+POTENTIAL PAYOUT (if ${side} wins):
+  Gross Payout:    ${grossPayout} sats
+  House Fee (${houseRake}%):  -${houseCut} sats
+  ─────────────────────────────
+  Net Payout:      ${netPayout} sats
+  Your Profit:     ${netPayout - amount >= 0 ? '+' : ''}${netPayout - amount} sats
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLAIM KEY (keep secret):
+${signature}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  Save both ticket number AND claim key!
+You need BOTH to claim your winnings.
+`;
+
             navigator.clipboard.writeText(fullTicket);
             alert('✅ Full ticket info copied!\n\nKeep this safe - you need both ticket number and claim key to claim winnings!');
         }
-    
+
         function closeModal() {
             document.getElementById('invoice-modal').style.display = 'none';
             if (checkInterval) clearInterval(checkInterval);
-    
+
             document.getElementById('yes-btn').classList.remove('btn-disabled');
             document.getElementById('yes-btn').textContent = 'BUY YES';
             document.getElementById('no-btn').classList.remove('btn-disabled');
             document.getElementById('no-btn').textContent = 'BUY NO';
         }
-    
+
         async function loadLeaderboard() {
             try {
                 const response = await fetch(`${API_BASE}/leaderboard`);
                 const data = await response.json();
-    
+
                 if (data.length > 0) {
                     const leaderboardHTML = data.map((entry, index) => `
                         <div class="leaderboard-row">
@@ -938,7 +1089,7 @@
                             <div style="color: #888; font-size: 0.85rem;">${entry.shares} shares</div>
                         </div>
                     `).join('');
-    
+
                     document.getElementById('leaderboard-list').innerHTML = leaderboardHTML;
                 } else {
                     document.getElementById('leaderboard-list').innerHTML =
@@ -950,11 +1101,11 @@
                     '<div style="text-align: center; color: #888;">Failed to load</div>';
             }
         }
-    
+
         loadMarket();
         setInterval(loadMarket, 10000);
     </script>
-    
+
 
 </body>
 
