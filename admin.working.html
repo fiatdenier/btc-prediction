@@ -142,39 +142,6 @@
             border-color: var(--btc-orange);
         }
 
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background: var(--card-bg);
-            border: 2px solid var(--btc-orange);
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .close-modal {
-            float: right;
-            font-size: 2rem;
-            cursor: pointer;
-            color: #888;
-        }
-
-        .close-modal:hover { color: white; }
-
         .ticket-display {
             background: #1a1a1a;
             border: 2px solid var(--border-color);
@@ -221,7 +188,6 @@
 
         .status-confirmed { background: var(--yes-green); color: white; }
         .status-pending { background: #f59e0b; color: white; }
-        .status-winner { background: #6366f1; color: white; }
 
         .alert {
             padding: 15px;
@@ -232,6 +198,23 @@
         .alert-success { background: rgba(34, 197, 94, 0.2); border: 1px solid var(--yes-green); }
         .alert-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--no-red); }
         .alert-warning { background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; }
+        .alert-info { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; }
+
+        code {
+            background: #000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        pre {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -301,13 +284,19 @@
                 </p>
 
                 <input type="text" id="verify-ticket-number" placeholder="Enter ticket number (e.g., ABC123XY)">
-                <input type="text" id="verify-signature" placeholder="Enter claim key (optional - to verify ownership)">
+                <input type="text" id="verify-signature" placeholder="Enter claim key (signature) - optional">
                 
                 <button class="action-btn btn-success" onclick="verifyTicket()">
                     🔍 Verify Ticket
                 </button>
 
                 <div id="ticket-result"></div>
+
+                <div class="alert alert-info" style="margin-top: 20px;">
+                    <strong>💡 Backend Verification:</strong><br>
+                    For cryptographic ownership verification, use the command line:<br>
+                    <code>python verify_ticket.py TICKET# -s SIGNATURE -k SECRET_KEY</code>
+                </div>
             </div>
 
             <!-- Market Actions -->
@@ -376,7 +365,6 @@
                     return false;
                 }
 
-                // Update stats
                 document.getElementById('total-volume').textContent = 
                     data.total_volume.toLocaleString();
                 document.getElementById('total-positions').textContent = 
@@ -386,7 +374,6 @@
                 document.getElementById('unique-users').textContent = 
                     data.unique_users || 0;
 
-                // Update market info
                 document.getElementById('market-question').textContent = 
                     data.market.question;
                 document.getElementById('market-status').textContent = 
@@ -431,7 +418,6 @@
                 }
 
                 const ticket = data.ticket;
-                const ownershipVerified = signature && signature === ticket.signature;
 
                 // Calculate payout status
                 let payoutInfo = '';
@@ -466,15 +452,26 @@
                     `;
                 }
 
+                // Signature check info
+                let signatureInfo = '';
+                if (signature) {
+                    signatureInfo = `
+                        <div class="alert alert-info">
+                            <strong>🔐 Signature Provided</strong><br>
+                            To verify ownership cryptographically, use the backend:<br>
+                            <pre style="margin-top: 10px; font-size: 0.85rem;">python verify_ticket.py ${ticketNumber} -s ${signature.substring(0, 32)}... -k YOUR_SECRET_KEY</pre>
+                            <p style="margin-top: 10px; font-size: 0.9rem;">
+                                The signature must match exactly and pass HMAC verification to prove ownership.
+                            </p>
+                        </div>
+                    `;
+                }
+
                 resultDiv.innerHTML = `
                     <div class="ticket-display">
                         <h3>TICKET: ${ticketNumber}</h3>
 
-                        ${ownershipVerified ? 
-                            '<div class="alert alert-success"><strong>✓ Ownership Verified</strong><br>Signature matches!</div>' :
-                            signature ? '<div class="alert alert-danger"><strong>✗ Ownership Failed</strong><br>Signature does not match</div>' :
-                            '<div class="alert alert-warning">Enter claim key to verify ownership</div>'
-                        }
+                        ${signatureInfo}
 
                         <div class="ticket-field">
                             <label>Status</label>
@@ -586,7 +583,7 @@
                         Winners: ${data.winners}<br>
                         Total Payout: ${data.total_payout} sats<br>
                         <details style="margin-top: 10px;">
-                            <summary>Winner List (first 50)</summary>
+                            <summary style="cursor: pointer;">View Winner List (first 50)</summary>
                             <pre style="margin-top: 10px; font-size: 0.8rem;">${JSON.stringify(data.winner_list, null, 2)}</pre>
                         </details>
                     </div>
