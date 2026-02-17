@@ -103,6 +103,11 @@
         .btn-success { background: var(--yes-green); }
         .btn-success:hover { background: #16a34a; }
 
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
         input, select, textarea {
             width: 100%;
             padding: 12px;
@@ -162,12 +167,21 @@
 
         .market-item h4 {
             margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .market-item .meta {
             color: #888;
             font-size: 0.85rem;
             margin-top: 5px;
+        }
+
+        .market-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
         }
 
         .status-badge {
@@ -177,12 +191,55 @@
             font-size: 0.75rem;
             font-weight: bold;
             text-transform: uppercase;
-            margin-left: 10px;
         }
 
         .status-open { background: rgba(34, 197, 94, 0.2); color: var(--yes-green); }
         .status-closed { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
         .status-resolved { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+        .winners-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .winners-table th {
+            background: #1a1a1a;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .winners-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+
+        .claimed-badge {
+            background: var(--yes-green);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+
+        .unclaimed-badge {
+            background: var(--no-red);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+
+        .auto-resolve-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -228,6 +285,20 @@
                     <input type="number" id="new-rake" value="5" min="0" max="100" step="0.1">
                 </div>
 
+                <div class="auto-resolve-box">
+                    <label style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <input type="checkbox" id="auto-resolve-enabled" style="width: auto; margin-right: 10px;">
+                        <span>Enable Auto-Resolution (BTC Price Based)</span>
+                    </label>
+                    <div id="auto-resolve-fields" style="display: none;">
+                        <label>Target BTC Price ($)</label>
+                        <input type="number" id="target-price" placeholder="150000">
+                        <p style="color: #888; font-size: 0.85rem; margin-top: -10px;">
+                            Market will auto-resolve YES if BTC hits this price, NO if deadline passes without hitting it.
+                        </p>
+                    </div>
+                </div>
+
                 <button class="action-btn btn-success" onclick="createMarket()">
                     🚀 CREATE MARKET
                 </button>
@@ -235,7 +306,7 @@
                 <div id="create-result"></div>
             </div>
 
-            <!-- Active Markets -->
+            <!-- All Markets -->
             <div class="section">
                 <h2>📊 All Markets</h2>
                 <div id="markets-list" class="markets-list">
@@ -243,36 +314,16 @@
                 </div>
             </div>
 
-            <!-- Market Actions -->
+            <!-- Winner Tracking -->
             <div class="section">
-                <h2>⚙️ Market Actions</h2>
+                <h2>🏆 Winner Tracking</h2>
                 
-                <label>Select Market</label>
-                <select id="action-market-select">
-                    <option value="">Choose a market...</option>
+                <label>Select Resolved Market</label>
+                <select id="winner-market-select" onchange="loadWinners()">
+                    <option value="">Choose a resolved market...</option>
                 </select>
 
-                <div style="margin-top: 20px;">
-                    <button class="action-btn btn-danger" onclick="closeMarket()">
-                        🔒 CLOSE BETTING
-                    </button>
-                    <p style="color: #888; margin-top: 10px; font-size: 0.9rem;">
-                        Prevent new bets but keep market open
-                    </p>
-                </div>
-
-                <div style="margin-top: 30px;">
-                    <h3 style="margin-bottom: 15px;">Resolve Market</h3>
-                    <select id="outcome-select">
-                        <option value="">Select Outcome</option>
-                        <option value="YES">YES</option>
-                        <option value="NO">NO</option>
-                    </select>
-                    <button class="action-btn btn-success" onclick="resolveMarket()">
-                        ✓ RESOLVE MARKET
-                    </button>
-                    <div id="resolution-result"></div>
-                </div>
+                <div id="winners-display"></div>
             </div>
 
             <button class="action-btn" onclick="loadMarkets()">
@@ -285,6 +336,14 @@
         const API_BASE = 'https://predict.fiatdenier.com';
         let adminKey = '';
         let allMarkets = [];
+
+        // Toggle auto-resolve fields
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('auto-resolve-enabled')?.addEventListener('change', (e) => {
+                document.getElementById('auto-resolve-fields').style.display = 
+                    e.target.checked ? 'block' : 'none';
+            });
+        });
 
         function login() {
             adminKey = document.getElementById('admin-password').value;
@@ -305,7 +364,6 @@
         }
 
         function setDefaultDate() {
-            // Set default to 30 days from now
             const date = new Date();
             date.setDate(date.getDate() + 30);
             const dateStr = date.toISOString().split('T')[0];
@@ -317,6 +375,8 @@
             const date = document.getElementById('new-date').value;
             const time = document.getElementById('new-time').value;
             const rake = parseFloat(document.getElementById('new-rake').value);
+            const autoResolve = document.getElementById('auto-resolve-enabled').checked;
+            const targetPrice = autoResolve ? parseFloat(document.getElementById('target-price').value) : null;
 
             if (!question) {
                 alert('Please enter a question');
@@ -328,21 +388,32 @@
                 return;
             }
 
-            // Combine date and time into ISO format
+            if (autoResolve && (!targetPrice || targetPrice <= 0)) {
+                alert('Please enter a valid target BTC price for auto-resolution');
+                return;
+            }
+
             const deadline = `${date}T${time}:00`;
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
 
             try {
+                const payload = {
+                    question: question,
+                    deadline: deadline,
+                    house_rake: rake
+                };
+
+                if (autoResolve) {
+                    payload.auto_resolve = true;
+                    payload.target_btc_price = targetPrice;
+                }
+
                 const response = await fetch(`${API_BASE}/admin/create-market?key=${adminKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: question,
-                        deadline: deadline,
-                        house_rake: rake
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -360,15 +431,17 @@
                             Market ID: ${data.market_id}<br>
                             Question: ${data.market.question}<br>
                             Deadline: ${new Date(data.market.deadline).toLocaleString()}
+                            ${autoResolve ? `<br>Auto-Resolve: YES (Target: $${targetPrice.toLocaleString()})` : ''}
                         </div>
                     `;
 
-                    // Clear form
                     document.getElementById('new-question').value = '';
                     setDefaultDate();
                     document.getElementById('new-rake').value = '5';
+                    document.getElementById('auto-resolve-enabled').checked = false;
+                    document.getElementById('auto-resolve-fields').style.display = 'none';
+                    document.getElementById('target-price').value = '';
 
-                    // Reload markets
                     setTimeout(() => loadMarkets(), 1000);
                 }
             } catch (error) {
@@ -393,7 +466,7 @@
                 allMarkets = [...(data.active || []), ...(data.resolved || [])];
 
                 displayMarketsList(allMarkets);
-                populateMarketSelect(allMarkets);
+                populateWinnerSelect(allMarkets.filter(m => m.status === 'resolved'));
 
                 return true;
             } catch (error) {
@@ -413,7 +486,7 @@
             container.innerHTML = markets.map(market => `
                 <div class="market-item">
                     <h4>
-                        ${market.question}
+                        <span>${market.question}</span>
                         <span class="status-badge status-${market.status}">${market.status}</span>
                     </h4>
                     <div class="meta">
@@ -422,28 +495,105 @@
                         YES: ${market.yes_percentage}% | 
                         NO: ${market.no_percentage}% | 
                         Deadline: ${new Date(market.deadline).toLocaleDateString()}
+                        ${market.auto_resolve ? ` | Auto-Resolve: $${market.target_btc_price?.toLocaleString()}` : ''}
+                    </div>
+                    <div class="market-actions">
+                        ${market.status === 'open' ? `
+                            <button class="action-btn btn-danger btn-small" onclick="closeMarket('${market.id}')">
+                                Close Betting
+                            </button>
+                            <button class="action-btn btn-success btn-small" onclick="resolveMarketPrompt('${market.id}')">
+                                Resolve
+                            </button>
+                        ` : ''}
+                        ${market.status === 'resolved' ? `
+                            <button class="action-btn btn-danger btn-small" onclick="deleteMarket('${market.id}')">
+                                Delete
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             `).join('');
         }
 
-        function populateMarketSelect(markets) {
-            const select = document.getElementById('action-market-select');
+        function populateWinnerSelect(resolvedMarkets) {
+            const select = document.getElementById('winner-market-select');
             
-            select.innerHTML = '<option value="">Choose a market...</option>' +
-                markets.filter(m => m.status !== 'resolved').map(market => `
-                    <option value="${market.id}">${market.question.substring(0, 60)}... [${market.status}]</option>
+            select.innerHTML = '<option value="">Choose a resolved market...</option>' +
+                resolvedMarkets.map(market => `
+                    <option value="${market.id}">${market.question.substring(0, 60)}...</option>
                 `).join('');
         }
 
-        async function closeMarket() {
-            const marketId = document.getElementById('action-market-select').value;
+        async function loadWinners() {
+            const marketId = document.getElementById('winner-market-select').value;
+            const displayDiv = document.getElementById('winners-display');
 
             if (!marketId) {
-                alert('Please select a market');
+                displayDiv.innerHTML = '';
                 return;
             }
 
+            displayDiv.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Loading winners...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/market/${marketId}/winners?key=${adminKey}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    displayDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    return;
+                }
+
+                const totalClaimed = data.winners.filter(w => w.claimed).length;
+                const totalUnclaimed = data.winners.length - totalClaimed;
+                const claimedAmount = data.winners.filter(w => w.claimed).reduce((sum, w) => sum + w.payout, 0);
+                const unclaimedAmount = data.winners.filter(w => !w.claimed).reduce((sum, w) => sum + w.payout, 0);
+
+                displayDiv.innerHTML = `
+                    <div class="alert alert-info" style="margin-top: 20px;">
+                        <strong>Summary:</strong><br>
+                        Total Winners: ${data.winners.length}<br>
+                        Claimed: ${totalClaimed} (${Math.round(claimedAmount)} sats)<br>
+                        Unclaimed: ${totalUnclaimed} (${Math.round(unclaimedAmount)} sats)
+                    </div>
+
+                    <table class="winners-table">
+                        <thead>
+                            <tr>
+                                <th>Ticket #</th>
+                                <th>Bet</th>
+                                <th>Payout</th>
+                                <th>Profit</th>
+                                <th>Status</th>
+                                <th>Claimed At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.winners.map(winner => `
+                                <tr>
+                                    <td style="font-family: monospace;">${winner.ticket_number}</td>
+                                    <td>${winner.bet} sats</td>
+                                    <td>${Math.round(winner.payout)} sats</td>
+                                    <td style="color: var(--yes-green);">+${Math.round(winner.profit)} sats</td>
+                                    <td>
+                                        <span class="${winner.claimed ? 'claimed-badge' : 'unclaimed-badge'}">
+                                            ${winner.claimed ? 'Claimed' : 'Unclaimed'}
+                                        </span>
+                                    </td>
+                                    <td>${winner.claimed_at ? new Date(winner.claimed_at * 1000).toLocaleString() : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Failed to load winners:', error);
+                displayDiv.innerHTML = `<div class="alert alert-danger">Failed to load winners</div>`;
+            }
+        }
+
+        async function closeMarket(marketId) {
             if (!confirm('Close betting for this market?')) {
                 return;
             }
@@ -461,17 +611,11 @@
             }
         }
 
-        async function resolveMarket() {
-            const marketId = document.getElementById('action-market-select').value;
-            const outcome = document.getElementById('outcome-select').value;
-
-            if (!marketId) {
-                alert('Please select a market');
-                return;
-            }
-
-            if (!outcome) {
-                alert('Please select an outcome');
+        function resolveMarketPrompt(marketId) {
+            const outcome = prompt('Enter outcome (YES or NO):')?.toUpperCase();
+            
+            if (outcome !== 'YES' && outcome !== 'NO') {
+                alert('Invalid outcome. Must be YES or NO');
                 return;
             }
 
@@ -479,6 +623,10 @@
                 return;
             }
 
+            resolveMarket(marketId, outcome);
+        }
+
+        async function resolveMarket(marketId, outcome) {
             try {
                 const response = await fetch(`${API_BASE}/admin/market/${marketId}/resolve?key=${adminKey}`, {
                     method: 'POST',
@@ -488,19 +636,38 @@
 
                 const data = await response.json();
 
-                document.getElementById('resolution-result').innerHTML = `
-                    <div class="alert alert-success">
-                        <strong>${data.status}</strong><br>
-                        Outcome: ${data.outcome}<br>
-                        Winners: ${data.winners}<br>
-                        Total Payouts: ${data.total_payouts || 0} sats<br>
-                        House Earnings: ${data.house_earnings || 0} sats
-                    </div>
-                `;
-
+                alert(`Market resolved!\nOutcome: ${data.outcome}\nWinners: ${data.winners}\nPayouts: ${data.total_payouts} sats`);
                 loadMarkets();
             } catch (error) {
                 alert('Failed to resolve market');
+            }
+        }
+
+        async function deleteMarket(marketId) {
+            if (!confirm('⚠️ DELETE this market permanently?\n\nThis will remove all tickets and data. This cannot be undone!')) {
+                return;
+            }
+
+            if (!confirm('Are you ABSOLUTELY sure? Type YES in the next prompt to confirm.')) {
+                return;
+            }
+
+            const confirmation = prompt('Type YES to permanently delete this market:');
+            if (confirmation !== 'YES') {
+                alert('Deletion cancelled');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/market/${marketId}/delete?key=${adminKey}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                alert(data.status || 'Market deleted');
+                loadMarkets();
+            } catch (error) {
+                alert('Failed to delete market');
             }
         }
     </script>
