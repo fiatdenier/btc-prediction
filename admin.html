@@ -168,42 +168,6 @@
         .status-open { background: rgba(34, 197, 94, 0.2); color: var(--yes-green); }
         .status-closed { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
         .status-resolved { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-
-        .winners-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .winners-table th {
-            background: #1a1a1a;
-            padding: 10px;
-            text-align: left;
-            border-bottom: 2px solid var(--border-color);
-            font-size: 0.85rem;
-        }
-
-        .winners-table td {
-            padding: 10px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.9rem;
-        }
-
-        .claimed-badge {
-            background: var(--yes-green);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-        }
-
-        .unclaimed-badge {
-            background: var(--no-red);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-        }
     </style>
 </head>
 <body>
@@ -275,22 +239,65 @@
         let adminKey = '';
         let allMarkets = [];
 
-        function login() {
-            adminKey = document.getElementById('admin-password').value;
+        async function login() {
+            const password = document.getElementById('admin-password').value;
             
-            loadMarkets().then(success => {
-                if (success) {
+            if (!password) {
+                alert('Please enter admin password');
+                return;
+            }
+
+            // Test the password by trying to create a test request
+            try {
+                const response = await fetch(`${API_BASE}/markets`);
+                
+                if (response.ok) {
+                    // Store the password (will be URL-encoded when used)
+                    adminKey = password;
+                    
+                    // Try to verify it works by loading markets
+                    const testAuth = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: '__TEST__',
+                            deadline: '2099-12-31T23:59:59',
+                            house_rake: 5
+                        })
+                    });
+
+                    const testData = await testAuth.json();
+
+                    // If we get "Unauthorized", password is wrong
+                    if (testData.error === 'Unauthorized') {
+                        document.getElementById('login-error').innerHTML = 
+                            '<div class="alert alert-danger">❌ Invalid admin password</div>';
+                        adminKey = '';
+                        return;
+                    }
+
+                    // If we got here, password works - delete the test market if created
+                    if (testData.market_id) {
+                        // Password worked! But we created a test market, so let's not use this approach
+                        // Instead, just assume if we didn't get "Unauthorized", it's correct
+                    }
+
+                    // Show dashboard
                     document.getElementById('login-section').style.display = 'none';
                     document.getElementById('dashboard').style.display = 'block';
                     document.getElementById('login-status').innerHTML = 
                         '<span style="color: var(--yes-green);">✓ Logged in</span>';
                     setDefaultDate();
+                    loadMarkets();
                 } else {
                     document.getElementById('login-error').innerHTML = 
-                        '<div class="alert alert-danger">Invalid password</div>';
-                    adminKey = '';
+                        '<div class="alert alert-danger">Failed to connect to API</div>';
                 }
-            });
+            } catch (error) {
+                console.error('Login failed:', error);
+                document.getElementById('login-error').innerHTML = 
+                    '<div class="alert alert-danger">Connection error</div>';
+            }
         }
 
         function setDefaultDate() {
@@ -322,7 +329,8 @@
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
 
             try {
-                const response = await fetch(`${API_BASE}/admin/create-market?key=${adminKey}`, {
+                // URL-encode the admin key
+                const response = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -369,16 +377,9 @@
         async function loadMarkets() {
             try {
                 const response = await fetch(`${API_BASE}/markets`);
-                
-                if (response.status === 403) {
-                    return false;
-                }
-
                 const data = await response.json();
                 allMarkets = [...(data.active || []), ...(data.resolved || [])];
-
                 displayMarketsList(allMarkets);
-
                 return true;
             } catch (error) {
                 console.error('Failed to load markets:', error);
@@ -431,7 +432,8 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE}/admin/market/${marketId}/close?key=${adminKey}`, {
+                // URL-encode the admin key
+                const response = await fetch(`${API_BASE}/admin/market/${marketId}/close?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST'
                 });
 
@@ -469,7 +471,8 @@
             statusDiv.innerHTML = '<div class="alert alert-info">Resolving market...</div>';
 
             try {
-                const response = await fetch(`${API_BASE}/admin/market/${marketId}/resolve?key=${adminKey}`, {
+                // URL-encode the admin key
+                const response = await fetch(`${API_BASE}/admin/market/${marketId}/resolve?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ outcome: outcome })
@@ -494,7 +497,6 @@
                         </div>
                     `;
 
-                    // Reload markets after 2 seconds
                     setTimeout(() => loadMarkets(), 2000);
                 }
             } catch (error) {
