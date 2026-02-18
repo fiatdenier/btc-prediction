@@ -24,10 +24,7 @@
             min-height: 100vh;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .container { max-width: 1400px; margin: 0 auto; }
 
         header {
             display: flex;
@@ -48,10 +45,7 @@
             margin-bottom: 30px;
         }
 
-        .section h2 {
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
+        .section h2 { margin-bottom: 20px; font-size: 1.5rem; }
 
         .action-btn {
             background: var(--btc-orange);
@@ -71,14 +65,9 @@
 
         .btn-danger { background: var(--no-red); }
         .btn-danger:hover { background: #dc2626; }
-
         .btn-success { background: var(--yes-green); }
         .btn-success:hover { background: #16a34a; }
-
-        .btn-small {
-            padding: 8px 16px;
-            font-size: 0.85rem;
-        }
+        .btn-small { padding: 8px 16px; font-size: 0.85rem; }
 
         input, select, textarea {
             width: 100%;
@@ -104,9 +93,7 @@
             font-size: 0.9rem;
         }
 
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 20px; }
 
         .datetime-group {
             display: grid;
@@ -180,9 +167,11 @@
         <div id="login-section">
             <div class="section">
                 <h2>Admin Login</h2>
+                <p style="color: #888; margin-bottom: 15px;">
+                    Enter the admin password from your server's .env file
+                </p>
                 <input type="password" id="admin-password" placeholder="Enter admin password">
                 <button class="action-btn" onclick="login()">Login</button>
-                <div id="login-error"></div>
             </div>
         </div>
 
@@ -237,67 +226,26 @@
     <script>
         const API_BASE = 'https://predict.fiatdenier.com';
         let adminKey = '';
-        let allMarkets = [];
 
-        async function login() {
-            const password = document.getElementById('admin-password').value;
+        function login() {
+            const password = document.getElementById('admin-password').value.trim();
             
             if (!password) {
                 alert('Please enter admin password');
                 return;
             }
 
-            // Test the password by trying to create a test request
-            try {
-                const response = await fetch(`${API_BASE}/markets`);
-                
-                if (response.ok) {
-                    // Store the password (will be URL-encoded when used)
-                    adminKey = password;
-                    
-                    // Try to verify it works by loading markets
-                    const testAuth = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            question: '__TEST__',
-                            deadline: '2099-12-31T23:59:59',
-                            house_rake: 5
-                        })
-                    });
-
-                    const testData = await testAuth.json();
-
-                    // If we get "Unauthorized", password is wrong
-                    if (testData.error === 'Unauthorized') {
-                        document.getElementById('login-error').innerHTML = 
-                            '<div class="alert alert-danger">❌ Invalid admin password</div>';
-                        adminKey = '';
-                        return;
-                    }
-
-                    // If we got here, password works - delete the test market if created
-                    if (testData.market_id) {
-                        // Password worked! But we created a test market, so let's not use this approach
-                        // Instead, just assume if we didn't get "Unauthorized", it's correct
-                    }
-
-                    // Show dashboard
-                    document.getElementById('login-section').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'block';
-                    document.getElementById('login-status').innerHTML = 
-                        '<span style="color: var(--yes-green);">✓ Logged in</span>';
-                    setDefaultDate();
-                    loadMarkets();
-                } else {
-                    document.getElementById('login-error').innerHTML = 
-                        '<div class="alert alert-danger">Failed to connect to API</div>';
-                }
-            } catch (error) {
-                console.error('Login failed:', error);
-                document.getElementById('login-error').innerHTML = 
-                    '<div class="alert alert-danger">Connection error</div>';
-            }
+            // Just store the password - the API will validate it
+            adminKey = password;
+            
+            // Show dashboard immediately
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('login-status').innerHTML = 
+                '<span style="color: var(--yes-green);">✓ Logged in</span>';
+            
+            setDefaultDate();
+            loadMarkets();
         }
 
         function setDefaultDate() {
@@ -329,7 +277,6 @@
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
 
             try {
-                // URL-encode the admin key
                 const response = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -346,6 +293,7 @@
                     resultDiv.innerHTML = `
                         <div class="alert alert-danger">
                             <strong>❌ Error:</strong> ${data.error}
+                            ${data.error === 'Unauthorized' ? '<br><br>Your admin password is incorrect. Please logout and try again.' : ''}
                         </div>
                     `;
                 } else {
@@ -378,12 +326,10 @@
             try {
                 const response = await fetch(`${API_BASE}/markets`);
                 const data = await response.json();
-                allMarkets = [...(data.active || []), ...(data.resolved || [])];
+                const allMarkets = [...(data.active || []), ...(data.resolved || [])];
                 displayMarketsList(allMarkets);
-                return true;
             } catch (error) {
                 console.error('Failed to load markets:', error);
-                return false;
             }
         }
 
@@ -432,7 +378,6 @@
             }
 
             try {
-                // URL-encode the admin key
                 const response = await fetch(`${API_BASE}/admin/market/${marketId}/close?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST'
                 });
@@ -440,7 +385,7 @@
                 const data = await response.json();
                 
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    alert('Error: ' + data.error + (data.error === 'Unauthorized' ? '\n\nYour admin password is incorrect.' : ''));
                 } else {
                     alert('Market betting closed successfully!');
                     loadMarkets();
@@ -471,7 +416,6 @@
             statusDiv.innerHTML = '<div class="alert alert-info">Resolving market...</div>';
 
             try {
-                // URL-encode the admin key
                 const response = await fetch(`${API_BASE}/admin/market/${marketId}/resolve?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -484,6 +428,7 @@
                     statusDiv.innerHTML = `
                         <div class="alert alert-danger">
                             <strong>❌ Error:</strong> ${data.error}
+                            ${data.error === 'Unauthorized' ? '<br><br>Your admin password is incorrect.' : ''}
                         </div>
                     `;
                 } else {
