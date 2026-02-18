@@ -192,8 +192,11 @@
                         <input type="date" id="new-date">
                     </div>
                     <div class="form-group">
-                        <label>Deadline Time</label>
+                        <label>Deadline Time (EST)</label>
                         <input type="time" id="new-time" value="23:59">
+                        <p style="color: #888; font-size: 0.75rem; margin-top: -10px;">
+                            Time will be converted from EST to UTC automatically
+                        </p>
                     </div>
                 </div>
 
@@ -304,7 +307,12 @@
                 return;
             }
 
-            const deadline = `${date}T${time}:00`;
+            // Create deadline in EST and convert to UTC
+            const deadlineEST = `${date}T${time}:00`;
+            const estDate = new Date(deadlineEST + ' EST');
+            
+            // Convert to UTC ISO format
+            const deadline = estDate.toISOString().slice(0, 19);
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
