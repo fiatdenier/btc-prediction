@@ -202,6 +202,20 @@
                     <input type="number" id="new-rake" value="5" min="0" max="100" step="0.1">
                 </div>
 
+                <div class="form-group" style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border: 1px solid #3b82f6;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="auto-resolve-enabled" style="width: auto; margin-right: 10px; cursor: pointer;">
+                        <span style="color: #3b82f6;">Enable Auto-Resolution (BTC Price Based)</span>
+                    </label>
+                    <div id="auto-resolve-fields" style="display: none; margin-top: 15px;">
+                        <label>Target BTC Price ($)</label>
+                        <input type="number" id="target-price" placeholder="150000" step="1000">
+                        <p style="color: #888; font-size: 0.85rem; margin-top: -10px;">
+                            Market will auto-resolve YES if BTC hits this price before deadline, or NO if deadline passes without hitting it.
+                        </p>
+                    </div>
+                </div>
+
                 <button class="action-btn btn-success" onclick="createMarket()">
                     🚀 CREATE MARKET
                 </button>
@@ -226,6 +240,18 @@
     <script>
         const API_BASE = 'https://predict.fiatdenier.com';
         let adminKey = '';
+
+        // Toggle auto-resolve fields
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkbox = document.getElementById('auto-resolve-enabled');
+            const fields = document.getElementById('auto-resolve-fields');
+            
+            if (checkbox && fields) {
+                checkbox.addEventListener('change', (e) => {
+                    fields.style.display = e.target.checked ? 'block' : 'none';
+                });
+            }
+        });
 
         function login() {
             const password = document.getElementById('admin-password').value.trim();
@@ -260,6 +286,8 @@
             const date = document.getElementById('new-date').value;
             const time = document.getElementById('new-time').value;
             const rake = parseFloat(document.getElementById('new-rake').value);
+            const autoResolve = document.getElementById('auto-resolve-enabled').checked;
+            const targetPrice = autoResolve ? parseFloat(document.getElementById('target-price').value) : null;
 
             if (!question) {
                 alert('Please enter a question');
@@ -271,20 +299,32 @@
                 return;
             }
 
+            if (autoResolve && (!targetPrice || targetPrice <= 0)) {
+                alert('Please enter a valid target BTC price for auto-resolution');
+                return;
+            }
+
             const deadline = `${date}T${time}:00`;
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
 
             try {
+                const payload = {
+                    question: question,
+                    deadline: deadline,
+                    house_rake: rake
+                };
+
+                if (autoResolve) {
+                    payload.auto_resolve = true;
+                    payload.target_btc_price = targetPrice;
+                }
+
                 const response = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: question,
-                        deadline: deadline,
-                        house_rake: rake
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -302,11 +342,15 @@
                             <strong>✅ ${data.status}</strong><br>
                             Market ID: ${data.market_id}<br>
                             Question: ${data.market.question}<br>
-                            Deadline: ${new Date(data.market.deadline).toLocaleString()}
+                            Deadline: ${new Date(data.market.deadline).toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
+                            ${autoResolve ? `<br>Auto-Resolve: Enabled (Target: $${targetPrice.toLocaleString()})` : ''}
                         </div>
                     `;
 
                     document.getElementById('new-question').value = '';
+                    document.getElementById('auto-resolve-enabled').checked = false;
+                    document.getElementById('auto-resolve-fields').style.display = 'none';
+                    document.getElementById('target-price').value = '';
                     setDefaultDate();
                     document.getElementById('new-rake').value = '5';
 

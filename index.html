@@ -380,11 +380,22 @@
             if (!element) return;
 
             const time = calculateTimeRemaining(deadline);
+            
+            // Get EST formatted deadline
+            const deadlineEST = new Date(deadline).toLocaleString('en-US', {
+                timeZone: 'America/New_York',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
 
             if (time.expired) {
                 element.innerHTML = `
                     <div class="countdown-label">Betting Closed</div>
-                    <div class="countdown-time" style="color: #888;">Deadline Passed</div>
+                    <div class="countdown-time" style="color: #888;">Deadline: ${deadlineEST} EST</div>
                 `;
                 if (countdownIntervals[marketId]) {
                     clearInterval(countdownIntervals[marketId]);
@@ -394,7 +405,7 @@
             }
 
             element.innerHTML = `
-                <div class="countdown-label">Time Remaining</div>
+                <div class="countdown-label">Deadline: ${deadlineEST} EST</div>
                 <div class="countdown-units">
                     <div class="countdown-unit">
                         <span class="number">${time.days}</span>
