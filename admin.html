@@ -313,14 +313,22 @@
                 return;
             }
 
-            // Create date in local browser time, treating input as EST
-            // Then convert to UTC for storage
+            // Create datetime in EST and convert to UTC properly
             const localDateTime = `${date}T${time}:00`;
-            const localDate = new Date(localDateTime);
             
-            // Add 5 hours to convert EST to UTC (EST is UTC-5)
-            const utcDate = new Date(localDate.getTime() + (5 * 60 * 60 * 1000));
-            const deadline = utcDate.toISOString().slice(0, 19);
+            // Create date object treating input as EST
+            // JavaScript Date constructor treats strings without timezone as local time
+            // So we need to explicitly handle EST to UTC conversion
+            const [year, month, day] = date.split('-');
+            const [hour, minute] = time.split(':');
+            
+            // Create UTC date by adding 5 hours to EST input
+            const estDate = new Date(year, month - 1, day, hour, minute, 0);
+            const utcTime = estDate.getTime() + (5 * 60 * 60 * 1000);
+            const utcDate = new Date(utcTime);
+            
+            // Format as ISO string for backend
+            const deadline = utcDate.toISOString().slice(0, 19) + 'Z';
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
