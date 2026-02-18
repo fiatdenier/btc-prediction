@@ -155,14 +155,6 @@
         .status-open { background: rgba(34, 197, 94, 0.2); color: var(--yes-green); }
         .status-closed { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
         .status-resolved { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-
-        .auto-resolve-box {
-            background: rgba(59, 130, 246, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #3b82f6;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
@@ -200,11 +192,8 @@
                         <input type="date" id="new-date">
                     </div>
                     <div class="form-group">
-                        <label>Deadline Time (EST/EDT)</label>
+                        <label>Deadline Time</label>
                         <input type="time" id="new-time" value="23:59">
-                        <p style="color: #888; font-size: 0.75rem; margin-top: -10px;">
-                            Eastern Time - will be converted to UTC
-                        </p>
                     </div>
                 </div>
 
@@ -213,16 +202,16 @@
                     <input type="number" id="new-rake" value="5" min="0" max="100" step="0.1">
                 </div>
 
-                <div class="auto-resolve-box">
+                <div class="form-group" style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border: 1px solid #3b82f6;">
                     <label style="display: flex; align-items: center; cursor: pointer;">
                         <input type="checkbox" id="auto-resolve-enabled" style="width: auto; margin-right: 10px; cursor: pointer;">
-                        <span style="color: #3b82f6; font-weight: bold;">🤖 Enable Auto-Resolution</span>
+                        <span style="color: #3b82f6;">Enable Auto-Resolution (BTC Price Based)</span>
                     </label>
                     <div id="auto-resolve-fields" style="display: none; margin-top: 15px;">
                         <label>Target BTC Price ($)</label>
                         <input type="number" id="target-price" placeholder="150000" step="1000">
                         <p style="color: #888; font-size: 0.85rem; margin-top: -10px;">
-                            Market will auto-resolve YES if BTC hits this price, or NO if deadline passes without hitting it.
+                            Market will auto-resolve YES if BTC hits this price before deadline, or NO if deadline passes without hitting it.
                         </p>
                     </div>
                 </div>
@@ -272,8 +261,10 @@
                 return;
             }
 
+            // Just store the password - the API will validate it
             adminKey = password;
             
+            // Show dashboard immediately
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
             document.getElementById('login-status').innerHTML = 
@@ -313,14 +304,7 @@
                 return;
             }
 
-            // Create date in local browser time, treating input as EST
-            // Then convert to UTC for storage
-            const localDateTime = `${date}T${time}:00`;
-            const localDate = new Date(localDateTime);
-            
-            // Add 5 hours to convert EST to UTC (EST is UTC-5)
-            const utcDate = new Date(localDate.getTime() + (5 * 60 * 60 * 1000));
-            const deadline = utcDate.toISOString().slice(0, 19);
+            const deadline = `${date}T${time}:00`;
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
@@ -353,19 +337,13 @@
                         </div>
                     `;
                 } else {
-                    const estDeadline = new Date(data.market.deadline).toLocaleString('en-US', {
-                        timeZone: 'America/New_York',
-                        dateStyle: 'medium',
-                        timeStyle: 'short'
-                    });
-
                     resultDiv.innerHTML = `
                         <div class="alert alert-success">
                             <strong>✅ ${data.status}</strong><br>
                             Market ID: ${data.market_id}<br>
                             Question: ${data.market.question}<br>
-                            Deadline: ${estDeadline} EST
-                            ${autoResolve ? `<br>🤖 Auto-Resolve: Enabled (Target: $${targetPrice.toLocaleString()})` : ''}
+                            Deadline: ${new Date(data.market.deadline).toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
+                            ${autoResolve ? `<br>Auto-Resolve: Enabled (Target: $${targetPrice.toLocaleString()})` : ''}
                         </div>
                     `;
 
@@ -407,14 +385,7 @@
                 return;
             }
 
-            container.innerHTML = markets.map(market => {
-                const deadlineEST = new Date(market.deadline).toLocaleString('en-US', {
-                    timeZone: 'America/New_York',
-                    dateStyle: 'short',
-                    timeStyle: 'short'
-                });
-
-                return `
+            container.innerHTML = markets.map(market => `
                 <div class="market-item" id="market-${market.id}">
                     <h4>
                         <span>${market.question}</span>
@@ -425,9 +396,8 @@
                         Pool: ${market.total_pool.toLocaleString()} sats | 
                         YES: ${market.yes_percentage}% | 
                         NO: ${market.no_percentage}% | 
-                        Deadline: ${deadlineEST} EST
+                        Deadline: ${new Date(market.deadline).toLocaleDateString()}
                         ${market.outcome ? ` | Outcome: ${market.outcome}` : ''}
-                        ${market.auto_resolve ? ` | 🤖 Auto: $${market.target_btc_price?.toLocaleString()}` : ''}
                     </div>
                     <div class="market-actions">
                         ${market.status === 'open' || market.status === 'closed' ? `
@@ -443,8 +413,7 @@
                     </div>
                     <div id="resolve-status-${market.id}"></div>
                 </div>
-            `;
-            }).join('');
+            `).join('');
         }
 
         async function closeMarket(marketId) {
@@ -460,7 +429,7 @@
                 const data = await response.json();
                 
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    alert('Error: ' + data.error + (data.error === 'Unauthorized' ? '\n\nYour admin password is incorrect.' : ''));
                 } else {
                     alert('Market betting closed successfully!');
                     loadMarkets();
@@ -503,6 +472,7 @@
                     statusDiv.innerHTML = `
                         <div class="alert alert-danger">
                             <strong>❌ Error:</strong> ${data.error}
+                            ${data.error === 'Unauthorized' ? '<br><br>Your admin password is incorrect.' : ''}
                         </div>
                     `;
                 } else {
