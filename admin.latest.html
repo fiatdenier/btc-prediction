@@ -200,10 +200,10 @@
                         <input type="date" id="new-date">
                     </div>
                     <div class="form-group">
-                        <label>Deadline Time (UTC)</label>
+                        <label>Deadline Time (EST/EDT)</label>
                         <input type="time" id="new-time" value="23:59">
                         <p style="color: #888; font-size: 0.75rem; margin-top: -10px;">
-                            Enter time in UTC timezone
+                            Eastern Time - will be converted to UTC
                         </p>
                     </div>
                 </div>
@@ -313,8 +313,37 @@
                 return;
             }
 
-            // User enters UTC time directly - no conversion needed
-            const deadline = `${date}T${time}:00`;
+            // Convert EST input to UTC for storage
+            // EST is UTC-5, so we add 5 hours
+            // Example: 3:35 PM EST = 8:35 PM UTC
+            
+            const [year, month, day] = date.split('-');
+            const [hour, minute] = time.split(':');
+            
+            let utcHour = parseInt(hour) + 5;
+            let utcDay = parseInt(day);
+            let utcMonth = parseInt(month);
+            let utcYear = parseInt(year);
+            
+            // Handle day overflow when adding 5 hours
+            if (utcHour >= 24) {
+                utcHour -= 24;
+                utcDay += 1;
+                
+                const daysInMonth = new Date(utcYear, utcMonth, 0).getDate();
+                if (utcDay > daysInMonth) {
+                    utcDay = 1;
+                    utcMonth += 1;
+                    if (utcMonth > 12) {
+                        utcMonth = 1;
+                        utcYear += 1;
+                    }
+                }
+            }
+            
+            // Create UTC timestamp
+            const utcTimestamp = Date.UTC(utcYear, utcMonth - 1, utcDay, utcHour, parseInt(minute), 0);
+            const deadline = new Date(utcTimestamp).toISOString().slice(0, 19);
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
@@ -347,12 +376,18 @@
                         </div>
                     `;
                 } else {
+                    const estDeadline = new Date(data.market.deadline).toLocaleString('en-US', {
+                        timeZone: 'America/New_York',
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                    });
+
                     resultDiv.innerHTML = `
                         <div class="alert alert-success">
                             <strong>✅ ${data.status}</strong><br>
                             Market ID: ${data.market_id}<br>
                             Question: ${data.market.question}<br>
-                            Deadline: ${data.market.deadline} UTC
+                            Deadline: ${estDeadline} EST
                             ${autoResolve ? `<br>🤖 Auto-Resolve: Enabled (Target: $${targetPrice.toLocaleString()})` : ''}
                         </div>
                     `;
