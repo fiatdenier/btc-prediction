@@ -553,7 +553,12 @@
                     // Add 'Z' suffix to treat deadline as UTC
                     const deadlineUTC = market.deadline.endsWith('Z') ? market.deadline : market.deadline + 'Z';
                     startCountdown(market.id, deadlineUTC);
-                }
+                }    
+
+                if (market.status === 'closed') {
+                    setTimeout(() => loadMarkets(), 5000); // Refresh after 15s
+                }    
+                
             });
         }
 
