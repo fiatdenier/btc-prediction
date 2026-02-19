@@ -307,8 +307,18 @@
 <body>
     <div class="container">
         <header>
-            <h1>⚡ Satoshi's Market</h1>
-            <div class="subtitle">Predict the Future. Win Sats. Powered by Lightning Network ⚡</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>⚡ Satoshi's Market</h1>
+                    <div class="subtitle">Predict the Future. Win Sats. Powered by Lightning Network ⚡</div>
+                </div>
+                <div style="text-align: right;">
+                    <label style="color: #888; font-size: 0.9rem; cursor: pointer;">
+                        <input type="checkbox" id="timezone-toggle" style="margin-right: 8px;">
+                        Show times in EST (default: UTC)
+                    </label>
+                </div>
+            </div>
         </header>
 
         <h2 class="section-title">🔥 Active Markets</h2>
@@ -357,6 +367,17 @@
         let checkInterval = null;
         let countdownIntervals = {};
 
+        // Listen for timezone toggle changes
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('timezone-toggle');
+            if (toggle) {
+                toggle.addEventListener('change', () => {
+                    // Refresh all countdowns when timezone changes
+                    loadMarkets();
+                });
+            }
+        });
+
         function calculateTimeRemaining(deadline) {
             const now = new Date().getTime();
             const end = new Date(deadline).getTime();
@@ -381,21 +402,39 @@
 
             const time = calculateTimeRemaining(deadline);
             
-            // Get EST formatted deadline
-            const deadlineEST = new Date(deadline).toLocaleString('en-US', {
-                timeZone: 'America/New_York',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
+            // Check timezone preference
+            const showEST = document.getElementById('timezone-toggle')?.checked || false;
+            
+            // Format deadline based on toggle
+            let deadlineFormatted, timezoneSuffix;
+            if (showEST) {
+                deadlineFormatted = new Date(deadline).toLocaleString('en-US', {
+                    timeZone: 'America/New_York',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                timezoneSuffix = 'EST';
+            } else {
+                deadlineFormatted = new Date(deadline).toLocaleString('en-US', {
+                    timeZone: 'UTC',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                timezoneSuffix = 'UTC';
+            }
 
             if (time.expired) {
                 element.innerHTML = `
                     <div class="countdown-label">Betting Closed</div>
-                    <div class="countdown-time" style="color: #888;">Deadline: ${deadlineEST} EST</div>
+                    <div class="countdown-time" style="color: #888;">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
                 `;
                 if (countdownIntervals[marketId]) {
                     clearInterval(countdownIntervals[marketId]);
@@ -405,7 +444,7 @@
             }
 
             element.innerHTML = `
-                <div class="countdown-label">Deadline: ${deadlineEST} EST</div>
+                <div class="countdown-label">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
                 <div class="countdown-units">
                     <div class="countdown-unit">
                         <span class="number">${time.days}</span>
@@ -511,7 +550,9 @@
             // Start countdowns for active markets
             markets.forEach(market => {
                 if (market.status === 'open') {
-                    startCountdown(market.id, market.deadline);
+                    // Add 'Z' suffix to treat deadline as UTC
+                    const deadlineUTC = market.deadline.endsWith('Z') ? market.deadline : market.deadline + 'Z';
+                    startCountdown(market.id, deadlineUTC);
                 }
             });
         }
