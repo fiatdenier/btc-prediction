@@ -314,7 +314,8 @@
             }
 
             // User enters UTC time directly - no conversion needed
-            const deadline = `${date}T${time}:00`;
+            // Add 'Z' suffix to explicitly mark as UTC
+            const deadline = `${date}T${time}:00Z`;
 
             const resultDiv = document.getElementById('create-result');
             resultDiv.innerHTML = '<div style="color: #888;">Creating market...</div>';
