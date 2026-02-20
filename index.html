@@ -419,8 +419,8 @@
                                     ⏰ BETTING OPEN
                                 </div>
                                 <div style="color: #888; font-size: 0.85rem;">
-                                    Betting close: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
-                                    ${market.sweat_deadline ? `Game ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
+                                    Betting ends: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
+                                    ${market.sweat_deadline ? `Sweat ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
@@ -542,6 +542,7 @@
         function displayInvoice(data) {
             const content = document.getElementById('modal-content');
             content.innerHTML = `
+                <button class="close-modal" onclick="closeModal()">×</button>
                 <h2>⚡ Pay Invoice</h2>
                 <div class="ticket-display">
                     <p style="color: #888; margin-bottom: 15px;">Your Ticket</p>
@@ -560,7 +561,8 @@
                     <input type="text" id="invoice-text" value="${data.invoice}" readonly style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid var(--border-color); border-radius: 5px; color: white; font-size: 0.85rem; font-family: monospace;">
                     <button onclick="copyInvoice()" style="margin-top: 10px; padding: 10px 20px; background: var(--btc-orange); color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">Copy Invoice</button>
                 </div>
-                <p style="text-align: center; color: #666; font-size: 0.9rem;">Checking for payment...</p>
+                <p id="payment-status" style="text-align: center; color: #666; font-size: 0.9rem;">Checking for payment...</p>
+                <button onclick="closeModal()" style="margin-top: 15px; width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">Close</button>
             `;
 
             new QRCode(document.getElementById('qrcode'), {
@@ -583,16 +585,43 @@
 
         function startPaymentCheck(ticketNumber, marketId) {
             if (checkInterval) clearInterval(checkInterval);
+            let failCount = 0;
+            
             checkInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`${API_BASE}/ticket/${ticketNumber}/status`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
                     const data = await response.json();
+                    failCount = 0; // Reset on success
+                    
                     if (data.status === 'confirmed') {
                         clearInterval(checkInterval);
                         showPaymentSuccess(data);
                     }
                 } catch (error) {
                     console.error('Payment check failed:', error);
+                    failCount++;
+                    
+                    const statusEl = document.getElementById('payment-status');
+                    if (statusEl) {
+                        if (failCount >= 5) {
+                            statusEl.innerHTML = '⚠️ Unable to check payment status. Please check your wallet or close and try again.';
+                            statusEl.style.color = '#f59e0b';
+                        } else {
+                            statusEl.innerHTML = `Checking for payment... (attempt ${failCount})`;
+                        }
+                    }
+                    
+                    // Stop checking after 30 failures (1 minute)
+                    if (failCount >= 30) {
+                        clearInterval(checkInterval);
+                        if (statusEl) {
+                            statusEl.innerHTML = '❌ Payment check timed out. If you paid, your bet will be confirmed shortly. You can close this window.';
+                            statusEl.style.color = '#ef4444';
+                        }
+                    }
                 }
             }, 2000);
         }
