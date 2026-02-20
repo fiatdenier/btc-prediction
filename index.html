@@ -419,8 +419,8 @@
                                     ⏰ BETTING OPEN
                                 </div>
                                 <div style="color: #888; font-size: 0.85rem;">
-                                    Betting ends: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
-                                    ${market.sweat_deadline ? `Sweat ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
+                                    Betting close: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
+                                    ${market.sweat_deadline ? `Game ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
