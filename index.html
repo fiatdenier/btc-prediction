@@ -331,16 +331,27 @@
             <div id="resolved-markets" class="markets-grid"></div>
         </div>
 
+        <!-- Claim Winnings Section -->
         <div id="claim-section" class="claim-section" style="display: none;">
             <h2 style="margin-top: 0;">💰 Claim Your Winnings</h2>
-            <input type="text" id="claim-ticket-number" placeholder="Ticket Number">
-            <input type="text" id="claim-signature" placeholder="Claim Key">
-            <input type="text" id="claim-lightning-address" placeholder="Lightning Address">
-            <button class="action-btn btn-yes" onclick="claimWinnings()">💸 CLAIM WINNINGS</button>
+            
+            <p style="color: #888; margin-bottom: 20px;">
+                If you have a winning ticket, enter your details below to claim your payout.
+            </p>
+
+            <input type="text" id="claim-ticket-number" placeholder="Ticket Number (e.g., ABC123XY)">
+            <input type="text" id="claim-signature" placeholder="Claim Key (your secret signature)" style="font-family: monospace;">
+            <input type="text" id="claim-lightning-address" placeholder="Lightning Address (you@getalby.com) or Invoice">
+
+            <button class="action-btn btn-yes" onclick="claimWinnings()">
+                💸 CLAIM WINNINGS
+            </button>
+
             <div id="claim-status" style="margin-top: 20px;"></div>
         </div>
     </div>
 
+    <!-- Bet Modal -->
     <div id="bet-modal" class="modal">
         <div class="modal-content">
             <button class="close-modal" onclick="closeBetModal()">&times;</button>
@@ -349,106 +360,26 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
     <script>
-        const API_BASE = 'https://predict.fiatdenier.com/api';
+        const API_BASE = 'https://predict.fiatdenier.com';
         let currentMarket = null;
         let currentTicketData = null;
         let checkInterval = null;
-        let countdownIntervals = {};
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const toggle = document.getElementById('timezone-toggle');
-            if (toggle) {
-                toggle.addEventListener('change', () => loadMarkets());
-            }
-        });
-
-        // --- FIXED TIME LOGIC ---
-        function getSafeUTCDate(dateString) {
-            // If the dateString doesn't end with Z or have a timezone, append Z to force UTC interpretation
-            const cleanDate = dateString.includes('Z') || dateString.includes('+') 
-                ? dateString 
-                : dateString.replace(' ', 'T') + 'Z';
-            return new Date(cleanDate);
-        }
-
-        function calculateTimeRemaining(deadline) {
-            const end = getSafeUTCDate(deadline).getTime();
-            const now = new Date().getTime();
-            const diff = end - now;
-
-            if (diff <= 0) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
-
-            return {
-                expired: false,
-                days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-                hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
-                seconds: Math.floor((diff % (1000 * 60)) / 1000)
-            };
-        }
-
-        function updateCountdown(marketId, deadline) {
-            const element = document.getElementById(`countdown-${marketId}`);
-            if (!element) return;
-
-            const time = calculateTimeRemaining(deadline);
-            const showEST = document.getElementById('timezone-toggle')?.checked || false;
-            const dateObj = getSafeUTCDate(deadline);
-
-            let deadlineFormatted, timezoneSuffix;
-
-            if (showEST) {
-                deadlineFormatted = dateObj.toLocaleString('en-US', {
-                    timeZone: 'America/New_York',
-                    month: 'short', day: 'numeric', year: 'numeric',
-                    hour: 'numeric', minute: '2-digit', hour12: true
-                });
-                timezoneSuffix = 'EST';
-            } else {
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                let hours = dateObj.getUTCHours();
-                const ampm = hours >= 12 ? 'PM' : 'AM';
-                hours = (hours % 12) || 12;
-                const minutes = String(dateObj.getUTCMinutes()).padStart(2, '0');
-                
-                deadlineFormatted = `${months[dateObj.getUTCMonth()]} ${dateObj.getUTCDate()}, ${dateObj.getUTCFullYear()}, ${hours}:${minutes} ${ampm}`;
-                timezoneSuffix = 'UTC';
-            }
-
-            if (time.expired) {
-                element.innerHTML = `<div class="countdown-label">Betting Closed</div><div class="countdown-time" style="color: #888;">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>`;
-                return;
-            }
-
-            element.innerHTML = `
-                <div class="countdown-label">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
-                <div class="countdown-units">
-                    <div class="countdown-unit"><span class="number">${time.days}</span><span class="label">Days</span></div>
-                    <div class="countdown-unit"><span class="number">${String(time.hours).padStart(2, '0')}</span><span class="label">Hours</span></div>
-                    <div class="countdown-unit"><span class="number">${String(time.minutes).padStart(2, '0')}</span><span class="label">Mins</span></div>
-                    <div class="countdown-unit"><span class="number">${String(time.seconds).padStart(2, '0')}</span><span class="label">Secs</span></div>
-                </div>`;
-        }
-        // --- END FIXED TIME LOGIC ---
-
-        function startCountdown(marketId, deadline) {
-            if (countdownIntervals[marketId]) clearInterval(countdownIntervals[marketId]);
-            updateCountdown(marketId, deadline);
-            countdownIntervals[marketId] = setInterval(() => updateCountdown(marketId, deadline), 1000);
-        }
 
         async function loadMarkets() {
             try {
                 const response = await fetch(`${API_BASE}/markets`);
                 const data = await response.json();
                 displayMarkets(data.active, 'active-markets');
-                if (data.resolved?.length > 0) {
-                    document.getElementById('resolved-section').style.display = 'block';
+                if (data.resolved && data.resolved.length > 0) {
                     displayMarkets(data.resolved, 'resolved-markets');
                     document.getElementById('claim-section').style.display = 'block';
                 }
-            } catch (error) { console.error('Failed to load markets:', error); }
+            } catch (error) {
+                console.error('Failed to load markets:', error);
+                document.getElementById('active-markets').innerHTML = '<div class="loading">Failed to load markets</div>';
+            }
         }
 
         function displayMarkets(markets, containerId) {
@@ -457,21 +388,69 @@
                 container.innerHTML = '<div class="loading">No markets available</div>';
                 return;
             }
+
             container.innerHTML = markets.map(market => {
                 const isResolved = market.status === 'resolved';
+                const resolvedClass = isResolved ? 'resolved' : '';
+                
                 return `
-                    <div class="market-card ${isResolved ? 'resolved' : ''}" onclick="openMarket('${market.id}')">
+                    <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div class="status-badge status-${market.status}">${market.status}</div>
                         <div class="market-question">${market.question}</div>
+                        
                         <div class="market-stats">
-                            <div class="stat"><div class="stat-label">YES</div><div class="stat-value yes-value">${market.yes_percentage}%</div></div>
-                            <div class="stat"><div class="stat-label">NO</div><div class="stat-value no-value">${market.no_percentage}%</div></div>
+                            <div class="stat">
+                                <div class="stat-label">YES</div>
+                                <div class="stat-value yes-value">${market.yes_percentage}%</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">NO</div>
+                                <div class="stat-value no-value">${market.no_percentage}%</div>
+                            </div>
                         </div>
-                        <div class="market-pool">Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong></div>
-                        ${!isResolved ? `<div class="countdown" id="countdown-${market.id}"></div>` : `<div style="text-align:center;color:var(--resolved-green);font-weight:bold;">✓ ${market.outcome} Won</div>`}
-                    </div>`;
+
+                        <div class="market-pool">
+                            Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong>
+                        </div>
+
+                        ${market.phase === 'betting' ? `
+                            <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(34, 197, 94, 0.2); margin-top: 10px;">
+                                <div style="color: #22c55e; font-weight: bold; font-size: 1.1rem; margin-bottom: 5px;">
+                                    ⏰ BETTING OPEN
+                                </div>
+                                <div style="color: #888; font-size: 0.85rem;">
+                                    Betting ends: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
+                                    ${market.sweat_deadline ? `Sweat ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
+                                </div>
+                            </div>
+                        ` : market.phase === 'sweat' ? `
+                            <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(245, 158, 11, 0.2); margin-top: 10px;">
+                                <div style="color: #f59e0b; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px;">
+                                    🔥 SWEATING!
+                                </div>
+                                <div style="color: #fff; font-size: 1rem; margin-bottom: 5px;">
+                                    Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
+                                </div>
+                                <div style="color: #888; font-size: 0.85rem;">
+                                    ${market.highest_price_during_sweat ? `Highest: $${market.highest_price_during_sweat.toLocaleString()}<br>` : ''}
+                                    Ends: ${new Date(market.sweat_deadline?.replace('Z', '') || market.deadline).toUTCString()}
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
+                                    ✅ ${market.outcome} Won
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                `;
             }).join('');
-            markets.forEach(market => { if (market.status === 'open') startCountdown(market.id, market.deadline); });
+
+            const hasSweatMarkets = markets.some(m => m.phase === 'sweat');
+            if (hasSweatMarkets) {
+                setTimeout(() => loadMarkets(), 15000);
+            }
         }
 
         async function openMarket(marketId) {
@@ -479,60 +458,212 @@
                 const response = await fetch(`${API_BASE}/market/${marketId}`);
                 currentMarket = await response.json();
                 currentMarket.id = marketId;
+
                 const modal = document.getElementById('bet-modal');
                 const content = document.getElementById('modal-content');
-                if (currentMarket.status !== 'open') {
-                    content.innerHTML = `<h2>${currentMarket.question}</h2><div style="text-align:center;padding:40px;">Market is ${currentMarket.status}. Outcome: ${currentMarket.outcome || 'N/A'}</div>`;
-                } else {
+
+                if (currentMarket.phase !== 'betting') {
                     content.innerHTML = `
                         <h2>${currentMarket.question}</h2>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:20px 0;">
-                            <div style="text-align:center;background:rgba(34,197,94,0.1);padding:10px;">${currentMarket.yes_percentage}% YES</div>
-                            <div style="text-align:center;background:rgba(239,68,68,0.1);padding:10px;">${currentMarket.no_percentage}% NO</div>
+                        <div style="text-align: center; padding: 40px; color: #888;">
+                            <p>This market is ${currentMarket.phase === 'sweat' ? '🔥 sweating' : currentMarket.phase}.</p>
+                            ${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : ''}
                         </div>
-                        <input type="number" id="bet-amount" value="100">
-                        <button class="action-btn btn-yes" onclick="placeBet('YES')">BUY YES</button>
-                        <button class="action-btn btn-no" onclick="placeBet('NO')">BUY NO</button>`;
+                    `;
+                } else {
+                    content.innerHTML = `
+                        <h2 style="margin-bottom: 20px;">${currentMarket.question}</h2>
+
+                        <div class="market-stats" style="margin-bottom: 30px;">
+                            <div class="stat">
+                                <div class="stat-label">YES</div>
+                                <div class="stat-value yes-value">${currentMarket.yes_percentage}%</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">NO</div>
+                                <div class="stat-value no-value">${currentMarket.no_percentage}%</div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; margin-bottom: 20px; color: #888;">
+                            <strong>Total Pool:</strong> ${currentMarket.total_pool.toLocaleString()} sats
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <label style="color: #888; margin-bottom: 10px; display: block;">Amount (sats)</label>
+                            <input type="number" id="bet-amount" placeholder="1000" min="100" style="width: 100%; padding: 12px; font-size: 1rem; background: #1a1a1a; border: 2px solid var(--border-color); border-radius: 8px; color: white;">
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <button onclick="placeBet('YES')" style="background: var(--yes-green); color: white; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer;">
+                                BET YES
+                            </button>
+                            <button onclick="placeBet('NO')" style="background: var(--no-red); color: white; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer;">
+                                BET NO
+                            </button>
+                        </div>
+                    `;
                 }
-                modal.style.display = 'block';
-            } catch (e) { alert('Error opening market'); }
+
+                modal.style.display = 'flex';
+            } catch (error) {
+                console.error('Failed to load market:', error);
+                alert('Failed to load market details');
+            }
         }
 
         async function placeBet(side) {
             const amount = parseInt(document.getElementById('bet-amount').value);
-            const response = await fetch(`${API_BASE}/market/${currentMarket.id}/create-position`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ side, amount })
-            });
-            const data = await response.json();
-            currentTicketData = data;
-            showInvoice(data);
+            if (!amount || amount < 100) {
+                alert('Minimum bet is 100 sats');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/market/${currentMarket.id}/create-position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ side: side, amount_sats: amount })
+                });
+
+                currentTicketData = await response.json();
+                if (currentTicketData.error) {
+                    alert(currentTicketData.error);
+                    return;
+                }
+
+                displayInvoice(currentTicketData);
+            } catch (error) {
+                console.error('Failed to create position:', error);
+                alert('Failed to create bet');
+            }
         }
 
-        function showInvoice(data) {
+        function displayInvoice(data) {
             const content = document.getElementById('modal-content');
-            content.innerHTML = `<h3>Pay Invoice</h3><div id="qr-code"></div><p style="word-break:break-all;font-family:monospace;font-size:0.8rem;">${data.invoice}</p>`;
-            new QRCode(document.getElementById('qr-code'), { text: data.invoice, width: 200, height: 200 });
-            checkPayment(data.market_id, data.ticket_number);
+            content.innerHTML = `
+                <h2>⚡ Pay Invoice</h2>
+                <div class="ticket-display">
+                    <p style="color: #888; margin-bottom: 15px;">Your Ticket</p>
+                    <div style="font-size: 1.3rem; font-weight: bold; margin-bottom: 5px; font-family: monospace;">${data.ticket_number}</div>
+                    <div style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">Keep this safe to claim winnings!</div>
+                    <div style="margin-top: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px;">
+                        <p style="color: #888; margin-bottom: 5px;">Claim Key</p>
+                        <div style="font-family: monospace; font-size: 0.85rem; word-break: break-all; color: var(--btc-orange);">${data.signature}</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <div id="qrcode" style="display: inline-block;"></div>
+                </div>
+                <div style="margin: 20px 0; padding: 15px; background: rgba(247, 147, 26, 0.1); border-radius: 8px; word-break: break-all;">
+                    <p style="color: #888; font-size: 0.9rem; margin-bottom: 10px;">Or copy invoice:</p>
+                    <input type="text" id="invoice-text" value="${data.invoice}" readonly style="width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid var(--border-color); border-radius: 5px; color: white; font-size: 0.85rem; font-family: monospace;">
+                    <button onclick="copyInvoice()" style="margin-top: 10px; padding: 10px 20px; background: var(--btc-orange); color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">Copy Invoice</button>
+                </div>
+                <p style="text-align: center; color: #666; font-size: 0.9rem;">Checking for payment...</p>
+            `;
+
+            new QRCode(document.getElementById('qrcode'), {
+                text: data.invoice.toUpperCase(),
+                width: 256,
+                height: 256,
+                colorDark: '#000000',
+                colorLight: '#ffffff'
+            });
+
+            startPaymentCheck(data.ticket_number, currentMarket.id);
         }
 
-        function checkPayment(mId, tNum) {
+        function copyInvoice() {
+            const input = document.getElementById('invoice-text');
+            input.select();
+            document.execCommand('copy');
+            alert('Invoice copied to clipboard!');
+        }
+
+        function startPaymentCheck(ticketNumber, marketId) {
+            if (checkInterval) clearInterval(checkInterval);
             checkInterval = setInterval(async () => {
-                const res = await fetch(`${API_BASE}/market/${mId}/confirm-position/${tNum}`, { method: 'POST' });
-                const d = await res.json();
-                if (d.status === 'confirmed') { clearInterval(checkInterval); alert('Paid!'); closeBetModal(); loadMarkets(); }
+                try {
+                    const response = await fetch(`${API_BASE}/ticket/${ticketNumber}/status`);
+                    const data = await response.json();
+                    if (data.status === 'confirmed') {
+                        clearInterval(checkInterval);
+                        showPaymentSuccess(data);
+                    }
+                } catch (error) {
+                    console.error('Payment check failed:', error);
+                }
             }, 2000);
         }
 
-        async function claimWinnings() {
-            const t = document.getElementById('claim-ticket-number').value, s = document.getElementById('claim-signature').value, l = document.getElementById('claim-lightning-address').value;
-            const res = await fetch(`${API_BASE}/claim-winnings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_number: t, signature: s, lightning_address: l })});
-            const d = await res.json();
-            document.getElementById('claim-status').innerText = d.error || 'Success!';
+        function showPaymentSuccess(data) {
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <h2 style="color: var(--yes-green);">✓ Payment Confirmed!</h2>
+                <div class="ticket-display">
+                    <p style="color: #888; margin-bottom: 10px;">Your Position</p>
+                    <div style="font-size: 1.5rem; font-weight: bold; color: ${data.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">${data.amount_sats.toLocaleString()} sats on ${data.side}</div>
+                    <div style="margin-top: 20px; padding: 15px; background: rgba(247, 147, 26, 0.1); border-radius: 8px;">
+                        <p style="color: var(--btc-orange); font-weight: bold; margin-bottom: 5px;">⚠️ Save These!</p>
+                        <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">You'll need both to claim winnings</p>
+                        <div style="margin-bottom: 15px;">
+                            <p style="color: #888; font-size: 0.85rem;">Ticket Number</p>
+                            <div style="font-family: monospace; font-size: 1.1rem; padding: 10px; background: #1a1a1a; border-radius: 5px; margin-top: 5px;">${data.ticket_number}</div>
+                        </div>
+                        <div>
+                            <p style="color: #888; font-size: 0.85rem;">Claim Key</p>
+                            <div style="font-family: monospace; font-size: 0.75rem; padding: 10px; background: #1a1a1a; border-radius: 5px; margin-top: 5px; word-break: break-all;">${data.signature}</div>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="closeModal(); loadMarkets();" style="margin-top: 20px; width: 100%; padding: 15px; background: var(--btc-orange); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer;">Done</button>
+            `;
         }
 
-        function closeBetModal() { document.getElementById('bet-modal').style.display = 'none'; clearInterval(checkInterval); }
+        async function claimWinnings() {
+            const ticketNumber = document.getElementById('claim-ticket-number').value.trim();
+            const signature = document.getElementById('claim-signature').value.trim();
+            const lightningAddress = document.getElementById('claim-lightning-address').value.trim();
+
+            if (!ticketNumber || !signature || !lightningAddress) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/claim-winnings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticket_number: ticketNumber, signature: signature, lightning_address: lightningAddress })
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(`Success! ${data.payout} sats sent to ${lightningAddress}`);
+                    document.getElementById('claim-ticket-number').value = '';
+                    document.getElementById('claim-signature').value = '';
+                    document.getElementById('claim-lightning-address').value = '';
+                    loadMarkets();
+                }
+            } catch (error) {
+                console.error('Claim failed:', error);
+                alert('Failed to claim winnings');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('bet-modal').style.display = 'none';
+            if (checkInterval) {
+                clearInterval(checkInterval);
+                checkInterval = null;
+            }
+        }
+
         loadMarkets();
+        setInterval(loadMarkets, 30000);
     </script>
 </body>
 </html>
