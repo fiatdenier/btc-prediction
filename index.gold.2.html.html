@@ -366,55 +366,6 @@
         let currentMarket = null;
         let currentTicketData = null;
         let checkInterval = null;
-        let timerIntervals = {};
-
-        // Format ISO deadline string as clean UTC (no GMT label confusion)
-        function formatUTC(isoStr) {
-            if (!isoStr) return '';
-            const d = new Date(isoStr.replace('Z', '') + 'Z');
-            const pad = n => String(n).padStart(2, '0');
-            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-        }
-
-        // Format seconds into HH:MM:SS countdown string
-        function fmtCountdown(secs) {
-            if (secs <= 0) return '00:00:00';
-            const h = Math.floor(secs / 3600);
-            const m = Math.floor((secs % 3600) / 60);
-            const s = secs % 60;
-            const pad = n => String(n).padStart(2, '0');
-            return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-        }
-
-        // Start live countdown timers for a market card
-        function startCardTimers(market) {
-            // Clear any existing timer for this market
-            if (timerIntervals[market.id]) {
-                clearInterval(timerIntervals[market.id]);
-            }
-
-            const now = Math.floor(Date.now() / 1000);
-            const betDeadline = market.betting_deadline ? Math.floor(new Date(market.betting_deadline.replace('Z','')+'Z').getTime()/1000) : 0;
-            const sweatDeadline = market.sweat_deadline ? Math.floor(new Date(market.sweat_deadline.replace('Z','')+'Z').getTime()/1000) : 0;
-
-            timerIntervals[market.id] = setInterval(() => {
-                const t = Math.floor(Date.now() / 1000);
-
-                const betEl = document.getElementById(`bet-timer-${market.id}`);
-                if (betEl) {
-                    const left = betDeadline - t;
-                    betEl.textContent = fmtCountdown(Math.max(0, left));
-                    if (left <= 0) betEl.style.color = '#ef4444';
-                }
-
-                const sweatEl = document.getElementById(`sweat-timer-${market.id}`);
-                if (sweatEl) {
-                    const left = sweatDeadline - t;
-                    sweatEl.textContent = fmtCountdown(Math.max(0, left));
-                    if (left <= 300) sweatEl.style.color = '#ef4444'; // red in last 5 min
-                }
-            }, 1000);
-        }
 
         async function loadMarkets() {
             try {
@@ -464,22 +415,12 @@
 
                         ${market.phase === 'betting' ? `
                             <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(34, 197, 94, 0.2); margin-top: 10px;">
-                                <div style="color: #22c55e; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px;">
+                                <div style="color: #22c55e; font-weight: bold; font-size: 1.1rem; margin-bottom: 5px;">
                                     ⏰ BETTING OPEN
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
-                                    <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
-                                        <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Betting closes in</div>
-                                        <div id="bet-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #22c55e;">--:--:--</div>
-                                    </div>
-                                    <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
-                                        <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
-                                        <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
-                                    </div>
-                                </div>
-                                <div style="color: #666; font-size: 0.78rem;">
-                                    Betting: ${formatUTC(market.betting_deadline)} UTC<br>
-                                    ${market.sweat_deadline ? `Game ends: ${formatUTC(market.sweat_deadline)} UTC` : ''}
+                                <div style="color: #888; font-size: 0.85rem;">
+                                    Betting close: ${new Date(market.betting_deadline?.replace('Z', '') || market.deadline).toUTCString()}<br>
+                                    ${market.sweat_deadline ? `Game ends: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
@@ -487,16 +428,12 @@
                                 <div style="color: #f59e0b; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px;">
                                     🔥 SWEATING!
                                 </div>
-                                <div style="color: #fff; font-size: 1rem; margin-bottom: 8px;">
+                                <div style="color: #fff; font-size: 1rem; margin-bottom: 5px;">
                                     Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
                                 </div>
-                                <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
-                                    <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
-                                    <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
-                                </div>
-                                <div style="color: #888; font-size: 0.78rem;">
+                                <div style="color: #888; font-size: 0.85rem;">
                                     ${market.highest_price_during_sweat ? `Highest: $${market.highest_price_during_sweat.toLocaleString()}<br>` : ''}
-                                    Ends: ${formatUTC(market.sweat_deadline)} UTC
+                                    Ends: ${new Date(market.sweat_deadline?.replace('Z', '') || market.deadline).toUTCString()}
                                 </div>
                             </div>
                         ` : `
@@ -514,13 +451,6 @@
             if (hasSweatMarkets) {
                 setTimeout(() => loadMarkets(), 15000);
             }
-
-            // Start live countdown timers for all active markets
-            markets.forEach(market => {
-                if (market.phase === 'betting' || market.phase === 'sweat') {
-                    startCardTimers(market);
-                }
-            });
         }
 
         async function openMarket(marketId) {
