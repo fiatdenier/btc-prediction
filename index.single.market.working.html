@@ -331,6 +331,7 @@
             <div id="resolved-markets" class="markets-grid"></div>
         </div>
 
+        <!-- Claim Winnings Section -->
         <div id="claim-section" class="claim-section" style="display: none;">
             <h2 style="margin-top: 0;">💰 Claim Your Winnings</h2>
             
@@ -350,6 +351,7 @@
         </div>
     </div>
 
+    <!-- Bet Modal -->
     <div id="bet-modal" class="modal">
         <div class="modal-content">
             <button class="close-modal" onclick="closeBetModal()">&times;</button>
@@ -376,11 +378,9 @@
             }
         });
 
-        // --- UPDATED UTC TIME LOGIC ---
         function calculateTimeRemaining(deadline) {
-            // treat deadline as UTC
-            const end = new Date(deadline).getTime();
             const now = new Date().getTime();
+            const end = new Date(deadline).getTime();
             const diff = end - now;
 
             if (diff <= 0) {
@@ -401,32 +401,33 @@
             if (!element) return;
 
             const time = calculateTimeRemaining(deadline);
+            
+            // Check timezone preference
             const showEST = document.getElementById('timezone-toggle')?.checked || false;
             
+            // Format deadline based on toggle
             let deadlineFormatted, timezoneSuffix;
-            const dateObj = new Date(deadline);
-
             if (showEST) {
-                // Convert UTC deadline to EST string
-                deadlineFormatted = dateObj.toLocaleString('en-US', {
+                deadlineFormatted = new Date(deadline).toLocaleString('en-US', {
                     timeZone: 'America/New_York',
-                    month: 'short', day: 'numeric', year: 'numeric',
-                    hour: 'numeric', minute: '2-digit', hour12: true
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
                 });
                 timezoneSuffix = 'EST';
             } else {
-                // Format directly as UTC
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                const month = months[dateObj.getUTCMonth()];
-                const day = dateObj.getUTCDate();
-                const year = dateObj.getUTCFullYear();
-                let hours = dateObj.getUTCHours();
-                const ampm = hours >= 12 ? 'PM' : 'AM';
-                hours = hours % 12;
-                hours = hours ? hours : 12; // the hour '0' should be '12'
-                const minutes = String(dateObj.getUTCMinutes()).padStart(2, '0');
-                
-                deadlineFormatted = `${month} ${day}, ${year}, ${hours}:${minutes} ${ampm}`;
+                deadlineFormatted = new Date(deadline).toLocaleString('en-US', {
+                    timeZone: 'UTC',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
                 timezoneSuffix = 'UTC';
             }
 
@@ -435,6 +436,10 @@
                     <div class="countdown-label">Betting Closed</div>
                     <div class="countdown-time" style="color: #888;">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
                 `;
+                if (countdownIntervals[marketId]) {
+                    clearInterval(countdownIntervals[marketId]);
+                    delete countdownIntervals[marketId];
+                }
                 return;
             }
 
@@ -460,12 +465,20 @@
                 </div>
             `;
         }
-        // --- END UPDATED UTC TIME LOGIC ---
 
         function startCountdown(marketId, deadline) {
-            if (countdownIntervals[marketId]) clearInterval(countdownIntervals[marketId]);
+            // Clear existing interval if any
+            if (countdownIntervals[marketId]) {
+                clearInterval(countdownIntervals[marketId]);
+            }
+
+            // Update immediately
             updateCountdown(marketId, deadline);
-            countdownIntervals[marketId] = setInterval(() => updateCountdown(marketId, deadline), 1000);
+
+            // Then update every second
+            countdownIntervals[marketId] = setInterval(() => {
+                updateCountdown(marketId, deadline);
+            }, 1000);
         }
 
         async function loadMarkets() {
@@ -489,6 +502,7 @@
 
         function displayMarkets(markets, containerId) {
             const container = document.getElementById(containerId);
+
             if (!markets || markets.length === 0) {
                 container.innerHTML = '<div class="loading">No markets available</div>';
                 return;
@@ -496,10 +510,13 @@
 
             container.innerHTML = markets.map(market => {
                 const isResolved = market.status === 'resolved';
+                const resolvedClass = isResolved ? 'resolved' : '';
+                
                 return `
-                    <div class="market-card ${isResolved ? 'resolved' : ''}" onclick="openMarket('${market.id}')">
+                    <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div class="status-badge status-${market.status}">${market.status}</div>
                         <div class="market-question">${market.question}</div>
+                        
                         <div class="market-stats">
                             <div class="stat">
                                 <div class="stat-label">YES</div>
@@ -510,20 +527,31 @@
                                 <div class="stat-value no-value">${market.no_percentage}%</div>
                             </div>
                         </div>
+
                         <div class="market-pool">
                             Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong>
                         </div>
-                        ${!isResolved ? `<div class="countdown" id="countdown-${market.id}"><div class="countdown-label">Loading...</div></div>` : `
+
+                        ${!isResolved ? `
+                            <div class="countdown" id="countdown-${market.id}">
+                                <div class="countdown-label">Loading...</div>
+                            </div>
+                        ` : `
                             <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
-                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">✓ ${market.outcome} Won</div>
+                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
+                                    ✓ ${market.outcome} Won
+                                </div>
                             </div>
                         `}
                     </div>
                 `;
             }).join('');
 
+            // Start countdowns for active markets
             markets.forEach(market => {
-                if (market.status === 'open') startCountdown(market.id, market.deadline);
+                if (market.status === 'open') {
+                    startCountdown(market.id, market.deadline);
+                }
             });
         }
 
@@ -532,119 +560,366 @@
                 const response = await fetch(`${API_BASE}/market/${marketId}`);
                 currentMarket = await response.json();
                 currentMarket.id = marketId;
+
                 const modal = document.getElementById('bet-modal');
                 const content = document.getElementById('modal-content');
 
                 if (currentMarket.status !== 'open') {
-                    content.innerHTML = `<h2>${currentMarket.question}</h2><div style="text-align: center; padding: 40px; color: #888;"><p>This market is ${currentMarket.status}.</p>${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : ''}</div>`;
+                    content.innerHTML = `
+                        <h2>${currentMarket.question}</h2>
+                        <div style="text-align: center; padding: 40px; color: #888;">
+                            <p>This market is ${currentMarket.status}.</p>
+                            ${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : ''}
+                        </div>
+                    `;
                 } else {
                     content.innerHTML = `
                         <h2 style="margin-bottom: 20px;">${currentMarket.question}</h2>
+
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
-                            <div style="text-align: center; padding: 15px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;"><div style="color: var(--yes-green); font-size: 2rem; font-weight: bold;">${currentMarket.yes_percentage}%</div><div style="color: #888;">YES</div><div style="color: var(--yes-green); margin-top: 5px;">${currentMarket.yes_total} sats</div></div>
-                            <div style="text-align: center; padding: 15px; background: rgba(239, 68, 68, 0.1); border-radius: 8px;"><div style="color: var(--no-red); font-size: 2rem; font-weight: bold;">${currentMarket.no_percentage}%</div><div style="color: #888;">NO</div><div style="color: var(--no-red); margin-top: 5px;">${currentMarket.no_total} sats</div></div>
+                            <div style="text-align: center; padding: 15px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+                                <div style="color: var(--yes-green); font-size: 2rem; font-weight: bold;">${currentMarket.yes_percentage}%</div>
+                                <div style="color: #888;">YES</div>
+                                <div style="color: var(--yes-green); margin-top: 5px;">${currentMarket.yes_total} sats</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: rgba(239, 68, 68, 0.1); border-radius: 8px;">
+                                <div style="color: var(--no-red); font-size: 2rem; font-weight: bold;">${currentMarket.no_percentage}%</div>
+                                <div style="color: #888;">NO</div>
+                                <div style="color: var(--no-red); margin-top: 5px;">${currentMarket.no_total} sats</div>
+                            </div>
                         </div>
+
                         <label style="display: block; color: #888; margin-bottom: 10px;">Amount (sats)</label>
                         <input type="number" id="bet-amount" placeholder="100" min="10" value="100">
+
                         <div class="quick-amounts">
                             <button class="quick-amt-btn" onclick="setBetAmount(100)">100</button>
                             <button class="quick-amt-btn" onclick="setBetAmount(500)">500</button>
                             <button class="quick-amt-btn" onclick="setBetAmount(1000)">1K</button>
                             <button class="quick-amt-btn" onclick="setBetAmount(5000)">5K</button>
                         </div>
+
                         <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                             <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">Estimated Payout If Win</div>
                             <div id="estimated-payout-yes" style="font-size: 1.3rem; font-weight: bold; color: var(--yes-green); margin: 5px 0;">YES: ~0 sats</div>
                             <div id="estimated-payout-no" style="font-size: 1.3rem; font-weight: bold; color: var(--no-red);">NO: ~0 sats</div>
                         </div>
+
                         <button class="action-btn btn-yes" onclick="placeBet('YES')">BUY YES</button>
-                        <button class="action-btn btn-no" onclick="placeBet('NO')">BUY NO</button>`;
+                        <button class="action-btn btn-no" onclick="placeBet('NO')">BUY NO</button>
+                    `;
+
                     document.getElementById('bet-amount').addEventListener('input', updateEstimates);
                     updateEstimates();
                 }
+
                 modal.style.display = 'block';
-            } catch (error) { alert('Failed to load market details'); }
+            } catch (error) {
+                console.error('Failed to load market:', error);
+                alert('Failed to load market details');
+            }
         }
 
-        function setBetAmount(amount) { document.getElementById('bet-amount').value = amount; updateEstimates(); }
+        function setBetAmount(amount) {
+            document.getElementById('bet-amount').value = amount;
+            updateEstimates();
+        }
 
         function updateEstimates() {
             const amount = parseInt(document.getElementById('bet-amount').value) || 0;
+            
             if (amount === 0) {
                 document.getElementById('estimated-payout-yes').textContent = 'YES: ~0 sats';
                 document.getElementById('estimated-payout-no').textContent = 'NO: ~0 sats';
                 return;
             }
-            const currentYes = currentMarket.yes_total, currentNo = currentMarket.no_total, houseRake = currentMarket.house_rake / 100;
-            const yesEstimate = amount + (amount / (currentYes + amount)) * currentNo * (1 - houseRake);
-            const noEstimate = amount + (amount / (currentNo + amount)) * currentYes * (1 - houseRake);
-            document.getElementById('estimated-payout-yes').textContent = 'YES: ~' + Math.round(yesEstimate).toLocaleString() + ' sats';
-            document.getElementById('estimated-payout-no').textContent = 'NO: ~' + Math.round(noEstimate).toLocaleString() + ' sats';
+
+            const currentYes = currentMarket.yes_total;
+            const currentNo = currentMarket.no_total;
+            const houseRake = currentMarket.house_rake / 100;
+
+            // Calculate YES estimate
+            const newYesTotal = currentYes + amount;
+            const yesShare = amount / newYesTotal;
+            const yesProfit = yesShare * currentNo * (1 - houseRake);
+            const yesEstimate = amount + yesProfit;
+
+            // Calculate NO estimate  
+            const newNoTotal = currentNo + amount;
+            const noShare = amount / newNoTotal;
+            const noProfit = noShare * currentYes * (1 - houseRake);
+            const noEstimate = amount + noProfit;
+
+            document.getElementById('estimated-payout-yes').textContent = 
+                'YES: ~' + Math.round(yesEstimate).toLocaleString() + ' sats';
+            document.getElementById('estimated-payout-no').textContent = 
+                'NO: ~' + Math.round(noEstimate).toLocaleString() + ' sats';
         }
 
         async function placeBet(side) {
             const amount = parseInt(document.getElementById('bet-amount').value);
-            if (!amount || amount < 10) { alert('Minimum bet is 10 sats'); return; }
+
+            if (!amount || amount < 10) {
+                alert('Minimum bet is 10 sats');
+                return;
+            }
+
             document.getElementById('modal-content').innerHTML = '<div class="loading">Creating position...</div>';
+
             try {
                 const response = await fetch(`${API_BASE}/market/${currentMarket.id}/create-position`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ side: side, amount: amount })
                 });
+
                 const data = await response.json();
-                if (data.error) { alert(data.error); closeBetModal(); return; }
-                currentTicketData = { ...data };
+
+                if (data.error) {
+                    alert(data.error);
+                    closeBetModal();
+                    return;
+                }
+
+                // Save ticket data
+                currentTicketData = {
+                    ticket_number: data.ticket_number,
+                    signature: data.signature,
+                    market_id: data.market_id,
+                    side: data.side,
+                    amount: data.amount,
+                    estimated_payout: data.estimated_payout,
+                    timestamp: data.timestamp
+                };
+
                 const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
                 myTickets.push(currentTicketData);
                 localStorage.setItem('my_tickets', JSON.stringify(myTickets));
+
                 showInvoice(data);
-            } catch (error) { closeBetModal(); }
+
+            } catch (error) {
+                console.error('Bet failed:', error);
+                alert('Failed to create bet');
+                closeBetModal();
+            }
         }
 
         function showInvoice(data) {
             const content = document.getElementById('modal-content');
-            content.innerHTML = `<h3 style="text-align: center; margin-bottom: 20px;">Pay Invoice</h3><div id="qr-code" style="text-align: center; margin: 20px 0;"></div><div style="background: #0a0a0a; padding: 15px; border-radius: 8px; word-break: break-all; font-size: 0.85rem; font-family: monospace; margin-bottom: 20px;">${data.invoice}</div><button class="action-btn" style="background: var(--btc-orange);" onclick="copyToClipboard('${data.invoice}')">📋 COPY INVOICE</button><div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9rem;">Checking for payment...</div>`;
-            new QRCode(document.getElementById('qr-code'), { text: data.invoice, width: 250, height: 250 });
+
+            content.innerHTML = `
+                <h3 style="text-align: center; margin-bottom: 20px;">Pay Invoice</h3>
+
+                <div id="qr-code" style="text-align: center; margin: 20px 0;"></div>
+
+                <div style="background: #0a0a0a; padding: 15px; border-radius: 8px; word-break: break-all; font-size: 0.85rem; font-family: monospace; margin-bottom: 20px;">
+                    ${data.invoice}
+                </div>
+
+                <button class="action-btn" style="background: var(--btc-orange);" onclick="copyToClipboard('${data.invoice}')">
+                    📋 COPY INVOICE
+                </button>
+
+                <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9rem;">
+                    Checking for payment...
+                </div>
+            `;
+
+            new QRCode(document.getElementById('qr-code'), {
+                text: data.invoice,
+                width: 250,
+                height: 250,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
             checkPayment(data.market_id, data.ticket_number);
         }
 
         function checkPayment(marketId, ticketNumber) {
             if (checkInterval) clearInterval(checkInterval);
+
             checkInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/market/${marketId}/confirm-position/${ticketNumber}`, { method: 'POST' });
+                    const response = await fetch(
+                        `${API_BASE}/market/${marketId}/confirm-position/${ticketNumber}`,
+                        { method: 'POST' }
+                    );
                     const data = await response.json();
-                    if (data.status === 'confirmed' || data.status === 'already_confirmed') { clearInterval(checkInterval); showTicketDetails(); }
-                } catch (e) {}
+
+                    if (data.status === 'confirmed' || data.status === 'already_confirmed') {
+                        clearInterval(checkInterval);
+                        showTicketDetails();
+                    }
+                } catch (error) {
+                    console.error('Payment check failed:', error);
+                }
             }, 2000);
         }
 
         function showTicketDetails() {
             const content = document.getElementById('modal-content');
-            content.innerHTML = `<div style="text-align: center;"><div style="font-size: 4rem; margin-bottom: 20px;">✅</div><h2 style="color: var(--yes-green); margin-bottom: 20px;">PAYMENT CONFIRMED!</h2></div><div class="ticket-display"><div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;">YOUR TICKET NUMBER</div><div style="font-size: 2.5rem; font-weight: bold; color: var(--btc-orange); margin-bottom: 15px; font-family: 'Courier New', monospace; letter-spacing: 3px;">${currentTicketData.ticket_number}</div><div style="font-size: 0.8rem; color: #888; margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">CLAIM KEY (Keep Secret!)</div><div style="font-family: 'Courier New', monospace; font-size: 0.7rem; color: #666; word-break: break-all; margin-top: 10px; background: #000; padding: 10px; border-radius: 6px; max-height: 80px; overflow-y: auto;">${currentTicketData.signature}</div></div><button class="action-btn" style="background: var(--btc-orange);" onclick="copyTicketDetails()">📋 COPY FULL TICKET INFO</button><button class="action-btn btn-yes" onclick="closeBetModal(); loadMarkets();">✓ DONE</button>`;
+
+            content.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+                    <h2 style="color: var(--yes-green); margin-bottom: 20px;">PAYMENT CONFIRMED!</h2>
+                </div>
+
+                <div class="ticket-display">
+                    <div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;">YOUR TICKET NUMBER</div>
+                    <div style="font-size: 2.5rem; font-weight: bold; color: var(--btc-orange); 
+                                margin-bottom: 15px; font-family: 'Courier New', monospace; letter-spacing: 3px;">
+                        ${currentTicketData.ticket_number}
+                    </div>
+                    
+                    <div style="font-size: 0.8rem; color: #888; margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">
+                        CLAIM KEY (Keep Secret!)
+                    </div>
+                    <div style="font-family: 'Courier New', monospace; font-size: 0.7rem; 
+                                color: #666; word-break: break-all; margin-top: 10px; 
+                                background: #000; padding: 10px; border-radius: 6px; max-height: 80px; overflow-y: auto;">
+                        ${currentTicketData.signature}
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; 
+                                margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">
+                        <div>
+                            <div style="color: #888; font-size: 0.8rem;">SIDE</div>
+                            <div style="font-size: 1.2rem; font-weight: bold; color: ${currentTicketData.side === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'};">
+                                ${currentTicketData.side}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="color: #888; font-size: 0.8rem;">AMOUNT</div>
+                            <div style="font-size: 1.2rem; font-weight: bold;">${currentTicketData.amount} sats</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid var(--btc-orange); 
+                            border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    <strong>⚠️ SAVE YOUR TICKET INFO!</strong>
+                    <p style="margin: 10px 0 0 0; font-size: 0.9rem;">
+                        You need BOTH the ticket number AND claim key to collect winnings. Keep it secret!
+                    </p>
+                </div>
+
+                <button class="action-btn" style="background: var(--btc-orange);" 
+                        onclick="copyTicketDetails()">
+                    📋 COPY FULL TICKET INFO
+                </button>
+
+                <button class="action-btn btn-yes" onclick="closeBetModal(); loadMarkets();">
+                    ✓ DONE
+                </button>
+            `;
         }
 
         function copyTicketDetails() {
-            const fullTicket = `🎫 SATOSHI'S MARKET TICKET\nNUMBER: ${currentTicketData.ticket_number}\nSIDE: ${currentTicketData.side}\nAMOUNT: ${currentTicketData.amount} sats\nCLAIM KEY: ${currentTicketData.signature}`;
+            const fullTicket = `🎫 SATOSHI'S MARKET TICKET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TICKET NUMBER: ${currentTicketData.ticket_number}
+MARKET ID: ${currentTicketData.market_id}
+
+BET DETAILS:
+  Side:              ${currentTicketData.side}
+  Amount Bet:        ${currentTicketData.amount} sats
+  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLAIM KEY (keep secret):
+${currentTicketData.signature}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  Save both ticket number AND claim key!
+You need BOTH to claim your winnings.
+`;
+            
             navigator.clipboard.writeText(fullTicket);
-            alert('✅ Full ticket info copied!');
+            alert('✅ Full ticket info copied! Keep this safe!');
         }
 
         async function claimWinnings() {
-            const t = document.getElementById('claim-ticket-number').value.trim(), s = document.getElementById('claim-signature').value.trim(), l = document.getElementById('claim-lightning-address').value.trim();
-            if (!t || !s || !l) return;
+            const ticketNumber = document.getElementById('claim-ticket-number').value.trim();
+            const signature = document.getElementById('claim-signature').value.trim();
+            const lightningAddress = document.getElementById('claim-lightning-address').value.trim();
+
+            if (!ticketNumber || !signature || !lightningAddress) {
+                alert('Please fill all fields');
+                return;
+            }
+
             const statusDiv = document.getElementById('claim-status');
-            statusDiv.innerHTML = 'Processing...';
+            statusDiv.innerHTML = '<div style="text-align: center; color: #888;">Processing claim...</div>';
+
             try {
-                const response = await fetch(`${API_BASE}/claim-winnings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_number: t, signature: s, lightning_address: l })});
+                const response = await fetch(`${API_BASE}/claim-winnings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_number: ticketNumber,
+                        signature: signature,
+                        lightning_address: lightningAddress
+                    })
+                });
+
                 const data = await response.json();
-                statusDiv.innerHTML = data.error ? `<div style="color:var(--no-red)">❌ ${data.error}</div>` : `<div style="color:var(--yes-green)">✅ SUCCESS! Payout: ${data.payout} sats</div>`;
-            } catch (e) { statusDiv.innerHTML = 'Error.'; }
+
+                if (data.error) {
+                    statusDiv.innerHTML = `
+                        <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--no-red); 
+                                    border-radius: 8px; padding: 15px;">
+                            <strong>❌ ${data.error}</strong>
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid var(--yes-green); 
+                                    border-radius: 8px; padding: 20px;">
+                            <h3 style="margin: 0 0 15px 0; color: var(--yes-green);">✅ CLAIM SUCCESSFUL!</h3>
+                            
+                            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px;">
+                                <div style="color: #888;">Payout:</div>
+                                <div style="font-size: 1.3rem; font-weight: bold;">${data.payout} sats</div>
+                            </div>
+                            
+                            <p style="margin: 15px 0 0 0; color: #888; font-size: 0.9rem;">
+                                ${data.message}
+                            </p>
+                        </div>
+                    `;
+
+                    document.getElementById('claim-ticket-number').value = '';
+                    document.getElementById('claim-signature').value = '';
+                    document.getElementById('claim-lightning-address').value = '';
+                }
+            } catch (error) {
+                console.error('Claim failed:', error);
+                statusDiv.innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--no-red); 
+                                border-radius: 8px; padding: 15px;">
+                        <strong>❌ Error:</strong> Failed to process claim
+                    </div>
+                `;
+            }
         }
 
-        function copyToClipboard(text) { navigator.clipboard.writeText(text); alert('Copied!'); }
-        function closeBetModal() { document.getElementById('bet-modal').style.display = 'none'; if (checkInterval) clearInterval(checkInterval); }
-        window.addEventListener('beforeunload', () => Object.values(countdownIntervals).forEach(clearInterval));
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Copied to clipboard!');
+        }
+
+        function closeBetModal() {
+            document.getElementById('bet-modal').style.display = 'none';
+            if (checkInterval) clearInterval(checkInterval);
+        }
+
+        // Cleanup countdowns when page unloads
+        window.addEventListener('beforeunload', () => {
+            Object.values(countdownIntervals).forEach(interval => clearInterval(interval));
+        });
 
         loadMarkets();
         setInterval(loadMarkets, 30000);
