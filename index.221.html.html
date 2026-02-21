@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satoshi's Market - Bitcoin Prediction Markets</title>
+    <style>
+        :root {
+            --btc-orange: #f7931a;
+            --dark-bg: #0a0a0a;
+            --card-bg: #1a1a1a;
+            --yes-green: #22c55e;
+            --no-red: #ef4444;
+            --border-color: #2a2a2a;
+            --resolved-green: #22c55e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--dark-bg);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header {
+            padding: 20px 0 40px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3rem;
+            color: var(--btc-orange);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .markets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 60px;
+        }
+
+        .market-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 25px;
+            transition: transform 0.2s, border-color 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .market-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--btc-orange);
+        }
+
+        .market-card.resolved {
+            border-color: var(--resolved-green);
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            background: rgba(247, 147, 26, 0.1);
+            color: var(--btc-orange);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .countdown {
+            color: #888;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            margin: 15px 0;
+            line-height: 1.4;
+            min-height: 3.8em;
+        }
+
+        .market-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.03);
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        .stat-label { color: #888; font-size: 0.8rem; margin-bottom: 4px; }
+        .stat-value { font-weight: 600; font-size: 1.1rem; }
+
+        .odds-container { margin-bottom: 25px; }
+        .odd-bar {
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .odd-fill { height: 100%; transition: width 0.5s ease; }
+        .odd-fill.yes { background: var(--yes-green); }
+        .odd-fill.no { background: var(--no-red); }
+        .odd-labels { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; }
+
+        .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.2s;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .btn-yes { background: var(--yes-green); color: white; }
+        .btn-no { background: var(--no-red); color: white; }
+        button:hover { filter: brightness(1.1); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            width: 90%; max-width: 500px;
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            text-align: center;
+        }
+        .close-modal {
+            position: absolute;
+            top: 20px; right: 20px;
+            background: none; color: #888;
+            font-size: 24px; padding: 0; width: auto;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin: 20px 0;
+            background: #0a0a0a;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: white;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .qr-container { background: white; padding: 20px; border-radius: 15px; margin: 20px auto; display: inline-block; }
+        .invoice-text { word-break: break-all; font-family: monospace; font-size: 0.8rem; color: #888; margin-top: 15px; }
+
+        .claim-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .claim-grid { display: grid; gap: 15px; margin-top: 20px; }
+
+        #payment-status { margin-top: 20px; font-weight: 600; color: var(--btc-orange); }
+
+        .section-title {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            text-align: center;
+            color: var(--btc-orange);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Satoshi's Market</h1>
+            <p class="subtitle">Fair, Lightning-fast Bitcoin Prediction Markets</p>
+        </header>
+
+        <h2 class="section-title">Active Markets</h2>
+        <div id="markets-grid" class="markets-grid">
+            </div>
+
+        <h2 class="section-title">Resolved Markets</h2>
+        <div id="resolved-grid" class="markets-grid">
+            </div>
+
+        <div class="claim-section">
+            <h2>🏆 Claim Winnings</h2>
+            <p style="color: #888; margin-top: 10px;">Enter your ticket details to receive your sats</p>
+            <div class="claim-grid">
+                <input type="text" id="claim-ticket-number" placeholder="Ticket Number (e.g. TKT-...)">
+                <input type="password" id="claim-signature" placeholder="Ticket Signature">
+                <input type="text" id="claim-lightning-address" placeholder="Your Lightning Address (e.g. user@getalby.com)">
+                <button class="btn-yes" onclick="claimWinnings()" style="width: 100%">Withdraw Sats</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bet-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+            <h2 id="modal-title">Place Bet</h2>
+            <div id="bet-setup">
+                <input type="number" id="bet-amount" placeholder="Amount in sats (min 10)" value="1000">
+                <button id="generate-invoice-btn" class="btn-yes" style="width: 100%" onclick="generateInvoice()">Generate Invoice</button>
+            </div>
+            <div id="payment-area" style="display: none;">
+                <div id="qrcode" class="qr-container"></div>
+                <p class="invoice-text" id="invoice-string"></p>
+                <div id="payment-status">Waiting for payment...</div>
+                <div id="payment-success" style="display: none;">
+                    <div style="background: rgba(34, 197, 94, 0.1); padding: 20px; border-radius: 12px; margin-top: 20px;">
+                        <h3 style="color: var(--yes-green); min-height: auto;">Payment Confirmed!</h3>
+                        <p>Save your ticket details immediately:</p>
+                        <div style="background: #000; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left;">
+                            <p>Ticket: <strong id="res-ticket" style="color: var(--btc-orange)"></strong></p>
+                            <p>Signature: <strong id="res-sig" style="color: var(--btc-orange)"></strong></p>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #888;">You will need these to claim your winnings.</p>
+                        <button class="btn-yes" onclick="closeModal()" style="width: 100%; margin-top: 20px;">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://predict.fiatdenier.com/api';
+        let checkInterval = null;
+        let countdownIntervals = {}; // // Track per-card tickers
+        let currentMarketId = null;
+        let currentSide = null;
+
+        async function loadMarkets() {
+            try {
+                const response = await fetch(`${API_BASE}/markets`);
+                const data = await response.json();
+                renderMarkets(data.active);
+                renderResolvedMarkets(data.resolved);
+            } catch (error) {
+                console.error('Failed to load markets:', error);
+            }
+        }
+
+        function renderMarkets(markets) {
+            const grid = document.getElementById('markets-grid');
+            grid.innerHTML = '';
+            
+            // Clear old intervals
+            Object.values(countdownIntervals).forEach(clearInterval);
+            countdownIntervals = {};
+
+            markets.forEach(market => {
+                const card = document.createElement('div');
+                card.className = `market-card ${market.status === 'resolved' ? 'resolved' : ''}`;
+                
+                const timerId = `timer-${market.id}`;
+                let currentSeconds = market.seconds_left;
+
+                card.innerHTML = `
+                    <div class="market-meta">
+                        <span class="status-badge">${market.phase || market.status}</span>
+                        <span class="countdown" id="${timerId}">${formatTime(currentSeconds)}</span>
+                    </div>
+                    <h3>${market.question}</h3>
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <div class="stat-label">Total Pool</div>
+                            <div class="stat-value">${market.total_pool.toLocaleString()} sats</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Target Price</div>
+                            <div class="stat-value">$${market.target_btc_price?.toLocaleString() || 'TBD'}</div>
+                        </div>
+                    </div>
+                    <div class="odds-container">
+                        <div class="odd-bar">
+                            <div class="odd-fill yes" style="width: ${market.yes_percentage}%"></div>
+                            <div class="odd-fill no" style="width: ${market.no_percentage}%"></div>
+                        </div>
+                        <div class="odd-labels">
+                            <span>YES ${market.yes_percentage}%</span>
+                            <span>NO ${market.no_percentage}%</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn-yes" onclick="openBetModal('${market.id}', 'YES')" ${market.status !== 'open' ? 'disabled' : ''}>Bet YES</button>
+                        <button class="btn-no" onclick="openBetModal('${market.id}', 'NO')" ${market.status !== 'open' ? 'disabled' : ''}>Bet NO</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+
+                // // Start the "dumb" ticker using backend seconds_left
+                if (currentSeconds > 0 && market.status === 'open') {
+                    countdownIntervals[market.id] = setInterval(() => {
+                        currentSeconds--;
+                        const el = document.getElementById(timerId);
+                        if (el) el.innerText = formatTime(currentSeconds);
+                        if (currentSeconds <= 0) {
+                            clearInterval(countdownIntervals[market.id]);
+                            if (el) el.innerText = "Closed";
+                        }
+                    }, 1000);
+                }
+            });
+        }
+
+        function formatTime(seconds) {
+            if (seconds <= 0) return "Closed";
+            const d = Math.floor(seconds / 86400);
+            const h = Math.floor((seconds % 86400) / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `Closes in: ${d > 0 ? d + 'd ' : ''}${h}h ${m}m ${s}s`;
+        }
+
+        function renderResolvedMarkets(markets) {
+            const grid = document.getElementById('resolved-grid');
+            grid.innerHTML = '';
+            markets.forEach(market => {
+                const card = document.createElement('div');
+                card.className = 'market-card resolved';
+                card.innerHTML = `
+                    <div class="market-meta">
+                        <span class="status-badge" style="background: rgba(34, 197, 94, 0.1); color: var(--yes-green)">RESOLVED</span>
+                        <span class="countdown">Result: ${market.outcome}</span>
+                    </div>
+                    <h3>${market.question}</h3>
+                    <div class="stats-row" style="grid-template-columns: 1fr">
+                        <div class="stat-item" style="text-align: center">
+                            <div class="stat-label">Winning Outcome</div>
+                            <div class="stat-value" style="color: ${market.outcome === 'YES' ? 'var(--yes-green)' : 'var(--no-red)'}">${market.outcome}</div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openBetModal(marketId, side) {
+            currentMarketId = marketId;
+            currentSide = side;
+            document.getElementById('modal-title').innerText = `Bet ${side} on Market`;
+            document.getElementById('bet-setup').style.display = 'block';
+            document.getElementById('payment-area').style.display = 'none';
+            document.getElementById('payment-success').style.display = 'none';
+            document.getElementById('bet-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            // # Corrected function name to prevent ReferenceError
+            document.getElementById('bet-modal').style.display = 'none';
+            if (checkInterval) {
+                clearInterval(checkInterval);
+                checkInterval = null;
+            }
+        }
+
+        async function generateInvoice() {
+            const amount = document.getElementById('bet-amount').value;
+            if (amount < 10) { alert('Minimum bet is 10 sats'); return; }
+
+            const btn = document.getElementById('generate-invoice-btn');
+            btn.disabled = true;
+            btn.innerText = 'Creating Invoice...';
+
+            try {
+                const response = await fetch(`${API_BASE}/bet`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ market_id: currentMarketId, side: currentSide, amount_sats: parseInt(amount) })
+                });
+
+                const data = await response.json();
+                
+                document.getElementById('bet-setup').style.display = 'none';
+                document.getElementById('payment-area').style.display = 'block';
+                
+                // Clear and generate QR
+                const qrContainer = document.getElementById('qrcode');
+                qrContainer.innerHTML = '';
+                new QRCode(qrContainer, { text: data.payment_request, width: 200, height: 200 });
+                
+                document.getElementById('invoice-string').innerText = data.payment_request;
+                document.getElementById('payment-status').innerText = 'Waiting for payment...';
+
+                startPaymentCheck(data.ticket_number);
+            } catch (error) {
+                console.error('Invoice generation failed:', error);
+                alert('Failed to generate invoice');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Generate Invoice';
+            }
+        }
+
+        function startPaymentCheck(ticketNumber) {
+            if (checkInterval) clearInterval(checkInterval);
+            
+            // // Incremental improvement: Resilient polling for Cloudflare/OCI
+            checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/ticket/${ticketNumber}/status`);
+                    if (!response.ok) return; // Keep trying on next tick
+
+                    const data = await response.json();
+                    if (data.status === 'confirmed') {
+                        clearInterval(checkInterval);
+                        showPaymentSuccess(data);
+                    } else {
+                        document.getElementById('payment-status').innerText = `Status: ${data.status}...`;
+                    }
+                } catch (error) {
+                    console.log('Poll failed, retrying...');
+                }
+            }, 3000);
+        }
+
+        function showPaymentSuccess(data) {
+            document.getElementById('qrcode').style.display = 'none';
+            document.getElementById('invoice-string').style.display = 'none';
+            document.getElementById('payment-status').style.display = 'none';
+            document.getElementById('payment-success').style.display = 'block';
+            
+            document.getElementById('res-ticket').innerText = data.ticket_number;
+            document.getElementById('res-sig').innerText = data.signature;
+            
+            loadMarkets(); // Refresh odds
+        }
+
+        async function claimWinnings() {
+            const ticketNumber = document.getElementById('claim-ticket-number').value.trim();
+            const signature = document.getElementById('claim-signature').value.trim();
+            const lightningAddress = document.getElementById('claim-lightning-address').value.trim();
+
+            if (!ticketNumber || !signature || !lightningAddress) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/claim-winnings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticket_number: ticketNumber, signature: signature, lightning_address: lightningAddress })
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(`Success! ${data.payout} sats sent to ${lightningAddress}`);
+                    document.getElementById('claim-ticket-number').value = '';
+                    document.getElementById('claim-signature').value = '';
+                    document.getElementById('claim-lightning-address').value = '';
+                    loadMarkets();
+                }
+            } catch (error) {
+                console.error('Claim failed:', error);
+                alert('Failed to claim winnings');
+            }
+        }
+
+        // Initial Load
+        loadMarkets();
+        // Background refresh every 30 seconds
+        setInterval(loadMarkets, 30000);
+    </script>
+</body>
+</html>
