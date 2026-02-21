@@ -550,7 +550,9 @@
             // Start countdowns for active markets
             markets.forEach(market => {
                 if (market.status === 'open') {
-                    startCountdown(market.id, market.deadline);
+                    // Add 'Z' suffix to treat deadline as UTC
+                    const deadlineUTC = market.deadline.endsWith('Z') ? market.deadline : market.deadline + 'Z';
+                    startCountdown(market.id, deadlineUTC);
                 }
             });
         }
