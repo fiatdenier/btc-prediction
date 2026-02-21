@@ -333,19 +333,10 @@
 
         <div id="claim-section" class="claim-section" style="display: none;">
             <h2 style="margin-top: 0;">💰 Claim Your Winnings</h2>
-            
-            <p style="color: #888; margin-bottom: 20px;">
-                If you have a winning ticket, enter your details below to claim your payout.
-            </p>
-
-            <input type="text" id="claim-ticket-number" placeholder="Ticket Number (e.g., ABC123XY)">
-            <input type="text" id="claim-signature" placeholder="Claim Key (your secret signature)" style="font-family: monospace;">
-            <input type="text" id="claim-lightning-address" placeholder="Lightning Address (you@getalby.com) or Invoice">
-
-            <button class="action-btn btn-yes" onclick="claimWinnings()">
-                💸 CLAIM WINNINGS
-            </button>
-
+            <input type="text" id="claim-ticket-number" placeholder="Ticket Number">
+            <input type="text" id="claim-signature" placeholder="Claim Key">
+            <input type="text" id="claim-lightning-address" placeholder="Lightning Address">
+            <button class="action-btn btn-yes" onclick="claimWinnings()">💸 CLAIM WINNINGS</button>
             <div id="claim-status" style="margin-top: 20px;"></div>
         </div>
     </div>
@@ -365,27 +356,28 @@
         let checkInterval = null;
         let countdownIntervals = {};
 
-        // Listen for timezone toggle changes
         document.addEventListener('DOMContentLoaded', () => {
             const toggle = document.getElementById('timezone-toggle');
             if (toggle) {
-                toggle.addEventListener('change', () => {
-                    // Refresh all countdowns when timezone changes
-                    loadMarkets();
-                });
+                toggle.addEventListener('change', () => loadMarkets());
             }
         });
 
-        // --- UPDATED UTC TIME LOGIC ---
+        // --- FIXED TIME LOGIC ---
+        function getSafeUTCDate(dateString) {
+            // If the dateString doesn't end with Z or have a timezone, append Z to force UTC interpretation
+            const cleanDate = dateString.includes('Z') || dateString.includes('+') 
+                ? dateString 
+                : dateString.replace(' ', 'T') + 'Z';
+            return new Date(cleanDate);
+        }
+
         function calculateTimeRemaining(deadline) {
-            // treat deadline as UTC
-            const end = new Date(deadline).getTime();
+            const end = getSafeUTCDate(deadline).getTime();
             const now = new Date().getTime();
             const diff = end - now;
 
-            if (diff <= 0) {
-                return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
-            }
+            if (diff <= 0) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
 
             return {
                 expired: false,
@@ -402,12 +394,11 @@
 
             const time = calculateTimeRemaining(deadline);
             const showEST = document.getElementById('timezone-toggle')?.checked || false;
-            
+            const dateObj = getSafeUTCDate(deadline);
+
             let deadlineFormatted, timezoneSuffix;
-            const dateObj = new Date(deadline);
 
             if (showEST) {
-                // Convert UTC deadline to EST string
                 deadlineFormatted = dateObj.toLocaleString('en-US', {
                     timeZone: 'America/New_York',
                     month: 'short', day: 'numeric', year: 'numeric',
@@ -415,52 +406,31 @@
                 });
                 timezoneSuffix = 'EST';
             } else {
-                // Format directly as UTC
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                const month = months[dateObj.getUTCMonth()];
-                const day = dateObj.getUTCDate();
-                const year = dateObj.getUTCFullYear();
                 let hours = dateObj.getUTCHours();
                 const ampm = hours >= 12 ? 'PM' : 'AM';
-                hours = hours % 12;
-                hours = hours ? hours : 12; // the hour '0' should be '12'
+                hours = (hours % 12) || 12;
                 const minutes = String(dateObj.getUTCMinutes()).padStart(2, '0');
                 
-                deadlineFormatted = `${month} ${day}, ${year}, ${hours}:${minutes} ${ampm}`;
+                deadlineFormatted = `${months[dateObj.getUTCMonth()]} ${dateObj.getUTCDate()}, ${dateObj.getUTCFullYear()}, ${hours}:${minutes} ${ampm}`;
                 timezoneSuffix = 'UTC';
             }
 
             if (time.expired) {
-                element.innerHTML = `
-                    <div class="countdown-label">Betting Closed</div>
-                    <div class="countdown-time" style="color: #888;">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
-                `;
+                element.innerHTML = `<div class="countdown-label">Betting Closed</div><div class="countdown-time" style="color: #888;">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>`;
                 return;
             }
 
             element.innerHTML = `
                 <div class="countdown-label">Deadline: ${deadlineFormatted} ${timezoneSuffix}</div>
                 <div class="countdown-units">
-                    <div class="countdown-unit">
-                        <span class="number">${time.days}</span>
-                        <span class="label">Days</span>
-                    </div>
-                    <div class="countdown-unit">
-                        <span class="number">${String(time.hours).padStart(2, '0')}</span>
-                        <span class="label">Hours</span>
-                    </div>
-                    <div class="countdown-unit">
-                        <span class="number">${String(time.minutes).padStart(2, '0')}</span>
-                        <span class="label">Mins</span>
-                    </div>
-                    <div class="countdown-unit">
-                        <span class="number">${String(time.seconds).padStart(2, '0')}</span>
-                        <span class="label">Secs</span>
-                    </div>
-                </div>
-            `;
+                    <div class="countdown-unit"><span class="number">${time.days}</span><span class="label">Days</span></div>
+                    <div class="countdown-unit"><span class="number">${String(time.hours).padStart(2, '0')}</span><span class="label">Hours</span></div>
+                    <div class="countdown-unit"><span class="number">${String(time.minutes).padStart(2, '0')}</span><span class="label">Mins</span></div>
+                    <div class="countdown-unit"><span class="number">${String(time.seconds).padStart(2, '0')}</span><span class="label">Secs</span></div>
+                </div>`;
         }
-        // --- END UPDATED UTC TIME LOGIC ---
+        // --- END FIXED TIME LOGIC ---
 
         function startCountdown(marketId, deadline) {
             if (countdownIntervals[marketId]) clearInterval(countdownIntervals[marketId]);
@@ -472,19 +442,13 @@
             try {
                 const response = await fetch(`${API_BASE}/markets`);
                 const data = await response.json();
-
                 displayMarkets(data.active, 'active-markets');
-
-                if (data.resolved && data.resolved.length > 0) {
+                if (data.resolved?.length > 0) {
                     document.getElementById('resolved-section').style.display = 'block';
                     displayMarkets(data.resolved, 'resolved-markets');
                     document.getElementById('claim-section').style.display = 'block';
                 }
-            } catch (error) {
-                console.error('Failed to load markets:', error);
-                document.getElementById('active-markets').innerHTML = 
-                    '<div class="loading">Failed to load markets</div>';
-            }
+            } catch (error) { console.error('Failed to load markets:', error); }
         }
 
         function displayMarkets(markets, containerId) {
@@ -493,7 +457,6 @@
                 container.innerHTML = '<div class="loading">No markets available</div>';
                 return;
             }
-
             container.innerHTML = markets.map(market => {
                 const isResolved = market.status === 'resolved';
                 return `
@@ -501,30 +464,14 @@
                         <div class="status-badge status-${market.status}">${market.status}</div>
                         <div class="market-question">${market.question}</div>
                         <div class="market-stats">
-                            <div class="stat">
-                                <div class="stat-label">YES</div>
-                                <div class="stat-value yes-value">${market.yes_percentage}%</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">NO</div>
-                                <div class="stat-value no-value">${market.no_percentage}%</div>
-                            </div>
+                            <div class="stat"><div class="stat-label">YES</div><div class="stat-value yes-value">${market.yes_percentage}%</div></div>
+                            <div class="stat"><div class="stat-label">NO</div><div class="stat-value no-value">${market.no_percentage}%</div></div>
                         </div>
-                        <div class="market-pool">
-                            Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong>
-                        </div>
-                        ${!isResolved ? `<div class="countdown" id="countdown-${market.id}"><div class="countdown-label">Loading...</div></div>` : `
-                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
-                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">✓ ${market.outcome} Won</div>
-                            </div>
-                        `}
-                    </div>
-                `;
+                        <div class="market-pool">Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong></div>
+                        ${!isResolved ? `<div class="countdown" id="countdown-${market.id}"></div>` : `<div style="text-align:center;color:var(--resolved-green);font-weight:bold;">✓ ${market.outcome} Won</div>`}
+                    </div>`;
             }).join('');
-
-            markets.forEach(market => {
-                if (market.status === 'open') startCountdown(market.id, market.deadline);
-            });
+            markets.forEach(market => { if (market.status === 'open') startCountdown(market.id, market.deadline); });
         }
 
         async function openMarket(marketId) {
@@ -534,120 +481,58 @@
                 currentMarket.id = marketId;
                 const modal = document.getElementById('bet-modal');
                 const content = document.getElementById('modal-content');
-
                 if (currentMarket.status !== 'open') {
-                    content.innerHTML = `<h2>${currentMarket.question}</h2><div style="text-align: center; padding: 40px; color: #888;"><p>This market is ${currentMarket.status}.</p>${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : ''}</div>`;
+                    content.innerHTML = `<h2>${currentMarket.question}</h2><div style="text-align:center;padding:40px;">Market is ${currentMarket.status}. Outcome: ${currentMarket.outcome || 'N/A'}</div>`;
                 } else {
                     content.innerHTML = `
-                        <h2 style="margin-bottom: 20px;">${currentMarket.question}</h2>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
-                            <div style="text-align: center; padding: 15px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;"><div style="color: var(--yes-green); font-size: 2rem; font-weight: bold;">${currentMarket.yes_percentage}%</div><div style="color: #888;">YES</div><div style="color: var(--yes-green); margin-top: 5px;">${currentMarket.yes_total} sats</div></div>
-                            <div style="text-align: center; padding: 15px; background: rgba(239, 68, 68, 0.1); border-radius: 8px;"><div style="color: var(--no-red); font-size: 2rem; font-weight: bold;">${currentMarket.no_percentage}%</div><div style="color: #888;">NO</div><div style="color: var(--no-red); margin-top: 5px;">${currentMarket.no_total} sats</div></div>
+                        <h2>${currentMarket.question}</h2>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:20px 0;">
+                            <div style="text-align:center;background:rgba(34,197,94,0.1);padding:10px;">${currentMarket.yes_percentage}% YES</div>
+                            <div style="text-align:center;background:rgba(239,68,68,0.1);padding:10px;">${currentMarket.no_percentage}% NO</div>
                         </div>
-                        <label style="display: block; color: #888; margin-bottom: 10px;">Amount (sats)</label>
-                        <input type="number" id="bet-amount" placeholder="100" min="10" value="100">
-                        <div class="quick-amounts">
-                            <button class="quick-amt-btn" onclick="setBetAmount(100)">100</button>
-                            <button class="quick-amt-btn" onclick="setBetAmount(500)">500</button>
-                            <button class="quick-amt-btn" onclick="setBetAmount(1000)">1K</button>
-                            <button class="quick-amt-btn" onclick="setBetAmount(5000)">5K</button>
-                        </div>
-                        <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-                            <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">Estimated Payout If Win</div>
-                            <div id="estimated-payout-yes" style="font-size: 1.3rem; font-weight: bold; color: var(--yes-green); margin: 5px 0;">YES: ~0 sats</div>
-                            <div id="estimated-payout-no" style="font-size: 1.3rem; font-weight: bold; color: var(--no-red);">NO: ~0 sats</div>
-                        </div>
+                        <input type="number" id="bet-amount" value="100">
                         <button class="action-btn btn-yes" onclick="placeBet('YES')">BUY YES</button>
                         <button class="action-btn btn-no" onclick="placeBet('NO')">BUY NO</button>`;
-                    document.getElementById('bet-amount').addEventListener('input', updateEstimates);
-                    updateEstimates();
                 }
                 modal.style.display = 'block';
-            } catch (error) { alert('Failed to load market details'); }
-        }
-
-        function setBetAmount(amount) { document.getElementById('bet-amount').value = amount; updateEstimates(); }
-
-        function updateEstimates() {
-            const amount = parseInt(document.getElementById('bet-amount').value) || 0;
-            if (amount === 0) {
-                document.getElementById('estimated-payout-yes').textContent = 'YES: ~0 sats';
-                document.getElementById('estimated-payout-no').textContent = 'NO: ~0 sats';
-                return;
-            }
-            const currentYes = currentMarket.yes_total, currentNo = currentMarket.no_total, houseRake = currentMarket.house_rake / 100;
-            const yesEstimate = amount + (amount / (currentYes + amount)) * currentNo * (1 - houseRake);
-            const noEstimate = amount + (amount / (currentNo + amount)) * currentYes * (1 - houseRake);
-            document.getElementById('estimated-payout-yes').textContent = 'YES: ~' + Math.round(yesEstimate).toLocaleString() + ' sats';
-            document.getElementById('estimated-payout-no').textContent = 'NO: ~' + Math.round(noEstimate).toLocaleString() + ' sats';
+            } catch (e) { alert('Error opening market'); }
         }
 
         async function placeBet(side) {
             const amount = parseInt(document.getElementById('bet-amount').value);
-            if (!amount || amount < 10) { alert('Minimum bet is 10 sats'); return; }
-            document.getElementById('modal-content').innerHTML = '<div class="loading">Creating position...</div>';
-            try {
-                const response = await fetch(`${API_BASE}/market/${currentMarket.id}/create-position`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ side: side, amount: amount })
-                });
-                const data = await response.json();
-                if (data.error) { alert(data.error); closeBetModal(); return; }
-                currentTicketData = { ...data };
-                const myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
-                myTickets.push(currentTicketData);
-                localStorage.setItem('my_tickets', JSON.stringify(myTickets));
-                showInvoice(data);
-            } catch (error) { closeBetModal(); }
+            const response = await fetch(`${API_BASE}/market/${currentMarket.id}/create-position`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ side, amount })
+            });
+            const data = await response.json();
+            currentTicketData = data;
+            showInvoice(data);
         }
 
         function showInvoice(data) {
             const content = document.getElementById('modal-content');
-            content.innerHTML = `<h3 style="text-align: center; margin-bottom: 20px;">Pay Invoice</h3><div id="qr-code" style="text-align: center; margin: 20px 0;"></div><div style="background: #0a0a0a; padding: 15px; border-radius: 8px; word-break: break-all; font-size: 0.85rem; font-family: monospace; margin-bottom: 20px;">${data.invoice}</div><button class="action-btn" style="background: var(--btc-orange);" onclick="copyToClipboard('${data.invoice}')">📋 COPY INVOICE</button><div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.9rem;">Checking for payment...</div>`;
-            new QRCode(document.getElementById('qr-code'), { text: data.invoice, width: 250, height: 250 });
+            content.innerHTML = `<h3>Pay Invoice</h3><div id="qr-code"></div><p style="word-break:break-all;font-family:monospace;font-size:0.8rem;">${data.invoice}</p>`;
+            new QRCode(document.getElementById('qr-code'), { text: data.invoice, width: 200, height: 200 });
             checkPayment(data.market_id, data.ticket_number);
         }
 
-        function checkPayment(marketId, ticketNumber) {
-            if (checkInterval) clearInterval(checkInterval);
+        function checkPayment(mId, tNum) {
             checkInterval = setInterval(async () => {
-                try {
-                    const response = await fetch(`${API_BASE}/market/${marketId}/confirm-position/${ticketNumber}`, { method: 'POST' });
-                    const data = await response.json();
-                    if (data.status === 'confirmed' || data.status === 'already_confirmed') { clearInterval(checkInterval); showTicketDetails(); }
-                } catch (e) {}
+                const res = await fetch(`${API_BASE}/market/${mId}/confirm-position/${tNum}`, { method: 'POST' });
+                const d = await res.json();
+                if (d.status === 'confirmed') { clearInterval(checkInterval); alert('Paid!'); closeBetModal(); loadMarkets(); }
             }, 2000);
         }
 
-        function showTicketDetails() {
-            const content = document.getElementById('modal-content');
-            content.innerHTML = `<div style="text-align: center;"><div style="font-size: 4rem; margin-bottom: 20px;">✅</div><h2 style="color: var(--yes-green); margin-bottom: 20px;">PAYMENT CONFIRMED!</h2></div><div class="ticket-display"><div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;">YOUR TICKET NUMBER</div><div style="font-size: 2.5rem; font-weight: bold; color: var(--btc-orange); margin-bottom: 15px; font-family: 'Courier New', monospace; letter-spacing: 3px;">${currentTicketData.ticket_number}</div><div style="font-size: 0.8rem; color: #888; margin-top: 20px; padding-top: 15px; border-top: 1px solid #404040;">CLAIM KEY (Keep Secret!)</div><div style="font-family: 'Courier New', monospace; font-size: 0.7rem; color: #666; word-break: break-all; margin-top: 10px; background: #000; padding: 10px; border-radius: 6px; max-height: 80px; overflow-y: auto;">${currentTicketData.signature}</div></div><button class="action-btn" style="background: var(--btc-orange);" onclick="copyTicketDetails()">📋 COPY FULL TICKET INFO</button><button class="action-btn btn-yes" onclick="closeBetModal(); loadMarkets();">✓ DONE</button>`;
-        }
-
-        function copyTicketDetails() {
-            const fullTicket = `🎫 SATOSHI'S MARKET TICKET\nNUMBER: ${currentTicketData.ticket_number}\nSIDE: ${currentTicketData.side}\nAMOUNT: ${currentTicketData.amount} sats\nCLAIM KEY: ${currentTicketData.signature}`;
-            navigator.clipboard.writeText(fullTicket);
-            alert('✅ Full ticket info copied!');
-        }
-
         async function claimWinnings() {
-            const t = document.getElementById('claim-ticket-number').value.trim(), s = document.getElementById('claim-signature').value.trim(), l = document.getElementById('claim-lightning-address').value.trim();
-            if (!t || !s || !l) return;
-            const statusDiv = document.getElementById('claim-status');
-            statusDiv.innerHTML = 'Processing...';
-            try {
-                const response = await fetch(`${API_BASE}/claim-winnings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_number: t, signature: s, lightning_address: l })});
-                const data = await response.json();
-                statusDiv.innerHTML = data.error ? `<div style="color:var(--no-red)">❌ ${data.error}</div>` : `<div style="color:var(--yes-green)">✅ SUCCESS! Payout: ${data.payout} sats</div>`;
-            } catch (e) { statusDiv.innerHTML = 'Error.'; }
+            const t = document.getElementById('claim-ticket-number').value, s = document.getElementById('claim-signature').value, l = document.getElementById('claim-lightning-address').value;
+            const res = await fetch(`${API_BASE}/claim-winnings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_number: t, signature: s, lightning_address: l })});
+            const d = await res.json();
+            document.getElementById('claim-status').innerText = d.error || 'Success!';
         }
 
-        function copyToClipboard(text) { navigator.clipboard.writeText(text); alert('Copied!'); }
-        function closeBetModal() { document.getElementById('bet-modal').style.display = 'none'; if (checkInterval) clearInterval(checkInterval); }
-        window.addEventListener('beforeunload', () => Object.values(countdownIntervals).forEach(clearInterval));
-
+        function closeBetModal() { document.getElementById('bet-modal').style.display = 'none'; clearInterval(checkInterval); }
         loadMarkets();
-        setInterval(loadMarkets, 30000);
     </script>
 </body>
 </html>
