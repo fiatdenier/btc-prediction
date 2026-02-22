@@ -278,13 +278,6 @@
         const API_BASE = 'https://predict.fiatdenier.com/api';
         let adminKey = '';
 
-        function formatUTC(isoStr) {
-            if (!isoStr) return '';
-            const d = new Date(isoStr.replace('Z', '') + 'Z');
-            const pad = n => String(n).padStart(2, '0');
-            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
-        }
-
         function login() {
             const password = document.getElementById('admin-password').value.trim();
             
@@ -435,8 +428,8 @@
                         ${market.highest_price_during_sweat ? ` | Highest: $${market.highest_price_during_sweat.toLocaleString()}` : ''}
                     </div>
                     <div class="meta" style="margin-top: 5px;">
-                        ${market.betting_deadline ? `Betting: ${formatUTC(market.betting_deadline)} UTC` : ''}
-                        ${market.sweat_deadline ? ` | Sweat: ${formatUTC(market.sweat_deadline)} UTC` : ''}
+                        ${market.betting_deadline ? `Betting: ${new Date(market.betting_deadline.replace('Z', '')).toUTCString()}` : ''}
+                        ${market.sweat_deadline ? ` | Sweat: ${new Date(market.sweat_deadline.replace('Z', '')).toUTCString()}` : ''}
                     </div>
                     <div class="market-actions">
                         ${market.status !== 'resolved' ? `

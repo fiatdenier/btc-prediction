@@ -419,28 +419,15 @@
         async function loadMarkets() {
             try {
                 const response = await fetch(`${API_BASE}/markets`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-
-                displayMarkets(data.active || [], 'active-markets');
-
-                // Always show resolved section and claim section so winners can claim
-                const resolvedSection = document.getElementById('resolved-section');
-                const claimSection = document.getElementById('claim-section');
+                displayMarkets(data.active, 'active-markets');
                 if (data.resolved && data.resolved.length > 0) {
                     displayMarkets(data.resolved, 'resolved-markets');
-                    resolvedSection.style.display = 'block';
-                    claimSection.style.display = 'block';
-                } else {
-                    // Even with no resolved markets, show claim section always
-                    // so users with tickets from expired markets can still claim
-                    claimSection.style.display = 'block';
-                    resolvedSection.style.display = 'none';
+                    document.getElementById('claim-section').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Failed to load markets:', error);
-                // Don't overwrite markets on transient errors — just log
-                console.warn('Will retry on next interval');
+                document.getElementById('active-markets').innerHTML = '<div class="loading">Failed to load markets</div>';
             }
         }
 
@@ -450,14 +437,6 @@
                 container.innerHTML = '<div class="loading">No markets available</div>';
                 return;
             }
-
-            // Clear existing timers for markets in this container before re-rendering
-            markets.forEach(m => {
-                if (timerIntervals[m.id]) {
-                    clearInterval(timerIntervals[m.id]);
-                    delete timerIntervals[m.id];
-                }
-            });
 
             container.innerHTML = markets.map(market => {
                 const isResolved = market.status === 'resolved';
