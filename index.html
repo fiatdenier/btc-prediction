@@ -999,7 +999,7 @@
             function connect() {
                 if (ws) { try { ws.close(); } catch(e){} }
                 // 24hr mini ticker gives current price + 24h open — one update per second
-                ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@miniTicker');
+                ws = new WebSocket('wss://stream.binance.com:443/ws/btcusdt@miniTicker');
                 ws.onopen    = () => { setStatus(true); };
                 ws.onmessage = onMessage;
                 ws.onerror   = () => setStatus(false);
