@@ -416,32 +416,57 @@
             }, 1000);
         }
 
+        let marketsData = {}; // Cache market data by id
+
         async function loadMarkets() {
             try {
                 const response = await fetch(`${API_BASE}/markets`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
 
-                displayMarkets(data.active || [], 'active-markets');
+                const active = data.active || [];
+                const resolved = data.resolved || [];
 
-                // Always show resolved section and claim section so winners can claim
+                // Check if we need a full re-render (new market ids appeared/disappeared)
+                const activeIds = active.map(m => m.id).sort().join(',');
+                const cachedIds = Object.keys(marketsData).filter(id => marketsData[id]._container === 'active-markets').sort().join(',');
+
+                if (activeIds !== cachedIds) {
+                    // Full render needed
+                    displayMarkets(active, 'active-markets');
+                } else {
+                    // Just update the numbers in-place, don't touch timer DOM
+                    active.forEach(m => updateMarketCard(m));
+                }
+
+                // Update cache
+                active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
+
                 const resolvedSection = document.getElementById('resolved-section');
                 const claimSection = document.getElementById('claim-section');
-                if (data.resolved && data.resolved.length > 0) {
-                    displayMarkets(data.resolved, 'resolved-markets');
+                claimSection.style.display = 'block';
+
+                if (resolved.length > 0) {
+                    displayMarkets(resolved, 'resolved-markets');
                     resolvedSection.style.display = 'block';
-                    claimSection.style.display = 'block';
                 } else {
-                    // Even with no resolved markets, show claim section always
-                    // so users with tickets from expired markets can still claim
-                    claimSection.style.display = 'block';
                     resolvedSection.style.display = 'none';
                 }
+
             } catch (error) {
                 console.error('Failed to load markets:', error);
-                // Don't overwrite markets on transient errors — just log
-                console.warn('Will retry on next interval');
+                // Don't wipe UI on transient errors
             }
+        }
+
+        function updateMarketCard(market) {
+            // Update only the dynamic data fields without re-rendering or touching timers
+            const yesEl = document.getElementById(`yes-pct-${market.id}`);
+            const noEl = document.getElementById(`no-pct-${market.id}`);
+            const poolEl = document.getElementById(`pool-${market.id}`);
+            if (yesEl) yesEl.textContent = market.yes_percentage + '%';
+            if (noEl) noEl.textContent = market.no_percentage + '%';
+            if (poolEl) poolEl.textContent = market.total_pool.toLocaleString() + ' sats';
         }
 
         function displayMarkets(markets, containerId) {
@@ -471,16 +496,16 @@
                         <div class="market-stats">
                             <div class="stat">
                                 <div class="stat-label">YES</div>
-                                <div class="stat-value yes-value">${market.yes_percentage}%</div>
+                                <div class="stat-value yes-value" id="yes-pct-${market.id}">${market.yes_percentage}%</div>
                             </div>
                             <div class="stat">
                                 <div class="stat-label">NO</div>
-                                <div class="stat-value no-value">${market.no_percentage}%</div>
+                                <div class="stat-value no-value" id="no-pct-${market.id}">${market.no_percentage}%</div>
                             </div>
                         </div>
 
                         <div class="market-pool">
-                            Total Pool: <strong>${market.total_pool.toLocaleString()} sats</strong>
+                            Total Pool: <strong id="pool-${market.id}">${market.total_pool.toLocaleString()} sats</strong>
                         </div>
 
                         ${market.phase === 'betting' ? `
@@ -530,11 +555,6 @@
                     </div>
                 `;
             }).join('');
-
-            const hasSweatMarkets = markets.some(m => m.phase === 'sweat');
-            if (hasSweatMarkets) {
-                setTimeout(() => loadMarkets(), 15000);
-            }
 
             // Start live countdown timers for all active markets
             markets.forEach(market => {
@@ -700,7 +720,6 @@
                     if (data.status === 'confirmed' || data.status === 'already_confirmed') {
                         clearInterval(checkInterval);
                         checkInterval = null;
-                        // Enrich with ticket data we already have from currentTicketData
                         showPaymentSuccess({
                             ticket_number: ticketNumber,
                             side: currentTicketData.side,
@@ -711,7 +730,7 @@
                 } catch (error) {
                     console.error('Payment check failed:', error);
                 }
-            }, 2000);
+            }, 3000);
         }
 
         function showPaymentSuccess(data) {
