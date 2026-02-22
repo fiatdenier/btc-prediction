@@ -692,11 +692,21 @@
             if (checkInterval) clearInterval(checkInterval);
             checkInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/ticket/${ticketNumber}/status`);
+                    const response = await fetch(`${API_BASE}/market/${marketId}/confirm-position/${ticketNumber}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
                     const data = await response.json();
-                    if (data.status === 'confirmed') {
+                    if (data.status === 'confirmed' || data.status === 'already_confirmed') {
                         clearInterval(checkInterval);
-                        showPaymentSuccess(data);
+                        checkInterval = null;
+                        // Enrich with ticket data we already have from currentTicketData
+                        showPaymentSuccess({
+                            ticket_number: ticketNumber,
+                            side: currentTicketData.side,
+                            amount_sats: currentTicketData.amount,
+                            signature: currentTicketData.signature
+                        });
                     }
                 } catch (error) {
                     console.error('Payment check failed:', error);
