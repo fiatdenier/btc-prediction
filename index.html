@@ -945,7 +945,9 @@
         setInterval(loadMarkets, 30000);
 
         // ============================================
-        // BTC LIVE PRICE TICKER (Binance WebSocket)
+        // BTC LIVE PRICE TICKER
+        // Strategy: Try Coinbase WebSocket first (port 443, browser-friendly)
+        //           Fall back to CoinGecko REST polling if WS fails within 5s
         // ============================================
         (function startTicker() {
             const priceEl  = document.getElementById('ticker-price');
@@ -953,66 +955,139 @@
             const dotEl    = document.getElementById('ticker-dot');
             const statusEl = document.getElementById('ticker-status-text');
 
-            let lastPrice  = null;
-            let openPrice  = null;   // track session open for % change
-            let ws         = null;
-            let reconnectTimer = null;
+            let lastPrice     = null;
+            let openPrice     = null;
+            let ws            = null;
+            let usingFallback = false;
+            let fallbackTimer = null;
+            let wsConnected   = false;
 
-            function setStatus(live) {
-                dotEl.className  = 'ticker-dot' + (live ? ' live' : '');
-                statusEl.textContent = live ? 'Live' : 'Reconnecting...';
+            function setStatus(live, label) {
+                dotEl.className      = 'ticker-dot' + (live ? ' live' : '');
+                statusEl.textContent = label || (live ? 'Live' : 'Reconnecting...');
             }
 
             function formatPrice(p) {
-                return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                return '$' + Number(p).toLocaleString('en-US', {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2
+                });
             }
 
-            function onMessage(e) {
+            function updateDisplay(price, open) {
+                const diff  = price - open;
+                const pct   = (diff / open) * 100;
+                const dir   = diff >= 0 ? 'up' : 'down';
+                const arrow = diff >= 0 ? '▲' : '▼';
+
+                if (lastPrice !== null && price !== lastPrice) {
+                    priceEl.className = 'ticker-price ' + (price > lastPrice ? 'up' : 'down');
+                    setTimeout(() => { priceEl.className = 'ticker-price'; }, 600);
+                }
+
+                priceEl.textContent    = formatPrice(price);
+                changeEl.style.display = '';
+                changeEl.className     = 'ticker-change ' + dir;
+                changeEl.textContent   = `${arrow} ${Math.abs(pct).toFixed(2)}% (${diff >= 0 ? '+' : ''}${formatPrice(diff)})`;
+                lastPrice = price;
+            }
+
+            // --- REST POLLING FALLBACK (CoinGecko) ---
+            let pollInterval = null;
+            async function pollCoinGecko() {
                 try {
-                    const data  = JSON.parse(e.data);
-                    const price = parseFloat(data.c);   // current price from 24hr mini ticker
-                    const open  = parseFloat(data.o);   // open price
-                    if (!price) return;
+                    const r = await fetch(
+                        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true',
+                        { cache: 'no-store' }
+                    );
+                    const d = await r.json();
+                    const price  = d.bitcoin.usd;
+                    const change = d.bitcoin.usd_24h_change;
+                    // Reconstruct approximate open from % change
+                    const open   = price / (1 + change / 100);
+                    updateDisplay(price, open);
+                    setStatus(true, 'Live (polling)');
+                } catch(e) {
+                    setStatus(false, 'No feed');
+                }
+            }
 
-                    openPrice = open;
-                    const diff    = price - open;
-                    const pct     = (diff / open) * 100;
-                    const dir     = diff >= 0 ? 'up' : 'down';
-                    const arrow   = diff >= 0 ? '▲' : '▼';
+            function startFallback() {
+                if (usingFallback) return;
+                usingFallback = true;
+                if (ws) { try { ws.close(); } catch(e){} ws = null; }
+                console.log('[Ticker] WebSocket failed, switching to REST polling');
+                pollCoinGecko();
+                pollInterval = setInterval(pollCoinGecko, 15000);
+            }
 
-                    // Flash price colour on change
-                    if (lastPrice !== null && price !== lastPrice) {
-                        priceEl.className = 'ticker-price ' + (price > lastPrice ? 'up' : 'down');
-                        setTimeout(() => { priceEl.className = 'ticker-price'; }, 600);
+            // --- COINBASE WEBSOCKET ---
+            function connectWS() {
+                if (usingFallback) return;
+                wsConnected = false;
+
+                // Watchdog: if no message in 5s after open, fall back
+                fallbackTimer = setTimeout(() => {
+                    if (!wsConnected) {
+                        console.log('[Ticker] WS timeout, switching to REST');
+                        startFallback();
                     }
+                }, 5000);
 
-                    priceEl.textContent  = formatPrice(price);
-                    changeEl.style.display = '';
-                    changeEl.className   = 'ticker-change ' + dir;
-                    changeEl.textContent = `${arrow} ${Math.abs(pct).toFixed(2)}% (${diff >= 0 ? '+' : ''}${formatPrice(diff)})`;
+                try {
+                    // Coinbase Advanced Trade WebSocket — port 443, no auth needed for tickers
+                    ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
 
-                    lastPrice = price;
-                    setStatus(true);
-                } catch(err) { /* ignore bad frames */ }
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({
+                            type: 'subscribe',
+                            product_ids: ['BTC-USD'],
+                            channel: 'ticker'
+                        }));
+                    };
+
+                    ws.onmessage = (e) => {
+                        try {
+                            const msg = JSON.parse(e.data);
+                            // Coinbase sends events array
+                            const events = msg.events || [];
+                            for (const ev of events) {
+                                const tickers = ev.tickers || [];
+                                for (const t of tickers) {
+                                    if (t.product_id !== 'BTC-USD') continue;
+                                    const price = parseFloat(t.price);
+                                    const open  = parseFloat(t.price) / (1 + parseFloat(t.price_percent_chg_24h || 0) / 100);
+                                    if (!price) continue;
+                                    wsConnected = true;
+                                    clearTimeout(fallbackTimer);
+                                    updateDisplay(price, open || price);
+                                    setStatus(true, 'Live');
+                                }
+                            }
+                        } catch(err) {}
+                    };
+
+                    ws.onerror = () => { if (!wsConnected) startFallback(); };
+
+                    ws.onclose = () => {
+                        if (!usingFallback && wsConnected) {
+                            // Was working, reconnect
+                            setStatus(false);
+                            setTimeout(connectWS, 5000);
+                        } else if (!usingFallback) {
+                            startFallback();
+                        }
+                    };
+
+                } catch(e) {
+                    startFallback();
+                }
             }
 
-            function connect() {
-                if (ws) { try { ws.close(); } catch(e){} }
-                // 24hr mini ticker gives current price + 24h open — one update per second
-                ws = new WebSocket('wss://stream.binance.com:443/ws/btcusdt@miniTicker');
-                ws.onopen    = () => { setStatus(true); };
-                ws.onmessage = onMessage;
-                ws.onerror   = () => setStatus(false);
-                ws.onclose   = () => {
-                    setStatus(false);
-                    priceEl.className = 'ticker-price';
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = setTimeout(connect, 5000);
-                };
-            }
-
-            connect();
+            connectWS();
         })();
+        // ============================================
+        // END TICKER
+        // ============================================
         // ============================================
         // END TICKER
         // ============================================
