@@ -1062,6 +1062,18 @@
             let fallbackTimer = null;
             let wsConnected   = false;
 
+            // Fetch the 24h open price once from Coinbase REST
+            async function fetchOpenPrice() {
+                try {
+                    const r = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot?date=' + 
+                        new Date(Date.now() - 86400000).toISOString().split('T')[0]);
+                    // OR use the stats endpoint:
+                    const r2 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats');
+                    const d = await r2.json();
+                    openPrice = parseFloat(d.open); // This is the 24h open
+                } catch(e) {}
+            }
+
             function setStatus(live, label) {
                 dotEl.className      = 'ticker-dot' + (live ? ' live' : '');
                 statusEl.textContent = label || (live ? 'Live' : 'Reconnecting...');
@@ -1073,10 +1085,9 @@
                 });
             }
 
-            function updateDisplay(price) {
-                if (!openPrice) return;
-                const diff  = price - openPrice;
-                const pct   = (diff / openPrice) * 100;
+            function updateDisplay(price, open) {
+                const diff  = price - open;
+                const pct   = (diff / open) * 100;
                 const dir   = diff >= 0 ? 'up' : 'down';
                 const arrow = diff >= 0 ? '▲' : '▼';
 
@@ -1090,18 +1101,7 @@
                 changeEl.className     = 'ticker-change ' + dir;
                 changeEl.textContent   = `${arrow} ${Math.abs(pct).toFixed(2)}% (${diff >= 0 ? '+' : ''}${formatPrice(diff)})`;
                 lastPrice = price;
-                window.liveBtcPrice = price;
-            }
-
-            // Fetch 24h open price from Coinbase stats
-            async function fetchOpenPrice() {
-                try {
-                    const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats');
-                    const d = await r.json();
-                    openPrice = parseFloat(d.open);
-                } catch(e) {
-                    console.log('[Ticker] Could not fetch open price:', e);
-                }
+                window.liveBtcPrice = price; // expose globally for sweat modal
             }
 
             // --- REST POLLING FALLBACK (CoinGecko) ---
@@ -1115,8 +1115,9 @@
                     const d = await r.json();
                     const price  = d.bitcoin.usd;
                     const change = d.bitcoin.usd_24h_change;
-                    if (!openPrice) openPrice = price / (1 + change / 100);
-                    updateDisplay(price);
+                    // Reconstruct approximate open from % change
+                    const open   = price / (1 + change / 100);
+                    updateDisplay(price, open);
                     window.liveBtcPrice = price;
                     setStatus(true, 'Live (polling)');
                 } catch(e) {
@@ -1138,6 +1139,7 @@
                 if (usingFallback) return;
                 wsConnected = false;
 
+                // Watchdog: if no message in 5s after open, fall back
                 fallbackTimer = setTimeout(() => {
                     if (!wsConnected) {
                         console.log('[Ticker] WS timeout, switching to REST');
@@ -1146,6 +1148,7 @@
                 }, 5000);
 
                 try {
+                    // Coinbase Advanced Trade WebSocket — port 443, no auth needed for tickers
                     ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
 
                     ws.onopen = () => {
@@ -1159,16 +1162,18 @@
                     ws.onmessage = (e) => {
                         try {
                             const msg = JSON.parse(e.data);
+                            // Coinbase sends events array
                             const events = msg.events || [];
                             for (const ev of events) {
                                 const tickers = ev.tickers || [];
                                 for (const t of tickers) {
                                     if (t.product_id !== 'BTC-USD') continue;
                                     const price = parseFloat(t.price);
+                                    const open  = parseFloat(t.price) / (1 + parseFloat(t.price_percent_chg_24h || 0) / 100);
                                     if (!price) continue;
                                     wsConnected = true;
                                     clearTimeout(fallbackTimer);
-                                    updateDisplay(price);
+                                    updateDisplay(price, open || price);
                                     setStatus(true, 'Live');
                                 }
                             }
@@ -1179,6 +1184,7 @@
 
                     ws.onclose = () => {
                         if (!usingFallback && wsConnected) {
+                            // Was working, reconnect
                             setStatus(false);
                             setTimeout(connectWS, 5000);
                         } else if (!usingFallback) {
@@ -1190,8 +1196,9 @@
                     startFallback();
                 }
             }
-
-            fetchOpenPrice().then(connectWS);
+            
+            fetchOpenPrice();
+            connectWS();
         })();
         // ============================================
         // END TICKER
