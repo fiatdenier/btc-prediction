@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satoshi's Market - Bitcoin Prediction Markets</title>
+    <meta property="og:title" content="Satoshi's Market ⚡">
+    <meta property="og:description" content="Sudden death Bitcoin prediction market. Winners take 95% of the pool.">
+    <meta property="og:image" content="https://fiatdenier.com/satoshi.png">
+    <meta property="og:url" content="https://fiatdenier.com/btc-prediction/">
+    <meta property="og:type" content="website">
     <style>
         :root {
             --btc-orange: #f7931a;
@@ -188,6 +193,75 @@
             color: #ccc;
         }
 
+        /* BTC Live Ticker */
+        .btc-ticker {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 20px;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            margin-bottom: 32px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .ticker-icon {
+            font-size: 1.3rem;
+        }
+
+        .ticker-label {
+            color: #888;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ticker-price {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--btc-orange);
+            transition: color 0.4s ease;
+            min-width: 120px;
+        }
+
+        .ticker-price.up   { color: var(--yes-green); }
+        .ticker-price.down { color: var(--no-red); }
+
+        .ticker-change {
+            font-size: 0.9rem;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 6px;
+        }
+
+        .ticker-change.up   { background: rgba(34,197,94,0.15);  color: var(--yes-green); }
+        .ticker-change.down { background: rgba(239,68,68,0.15);   color: var(--no-red); }
+
+        .ticker-status {
+            margin-left: auto;
+            font-size: 0.72rem;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ticker-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #555;
+            flex-shrink: 0;
+        }
+
+        .ticker-dot.live { background: var(--yes-green); animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
         .loading {
             text-align: center;
             padding: 60px;
@@ -322,6 +396,20 @@
             </div>
         </header>
 
+        <!-- BTC Live Price Ticker -->
+        <div class="btc-ticker">
+            <span class="ticker-icon">₿</span>
+            <div>
+                <div class="ticker-label">BTC / USD</div>
+                <div class="ticker-price" id="ticker-price">Connecting...</div>
+            </div>
+            <div id="ticker-change" class="ticker-change" style="display:none;"></div>
+            <div class="ticker-status">
+                <div class="ticker-dot" id="ticker-dot"></div>
+                <span id="ticker-status-text">Connecting to live feed...</span>
+            </div>
+        </div>
+
         <h2 class="section-title">🔥 Active Markets</h2>
         <div id="active-markets" class="markets-grid">
             <div class="loading">Loading markets...</div>
@@ -368,13 +456,28 @@
         let checkInterval = null;
         let timerIntervals = {};
 
-        // Format ISO deadline string as clean UTC (no GMT label confusion)
-        function formatUTC(isoStr) {
+        // Format ISO deadline string respecting the EST toggle
+        function formatTime(isoStr) {
             if (!isoStr) return '';
             const d = new Date(isoStr.replace('Z', '') + 'Z');
+            const useEST = document.getElementById('timezone-toggle')?.checked;
             const pad = n => String(n).padStart(2, '0');
-            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+            if (useEST) {
+                // EST = UTC-5, EDT = UTC-4. Use fixed EST offset (-5) for simplicity
+                const estOffset = -5 * 60; // minutes
+                const estDate = new Date(d.getTime() + estOffset * 60000);
+                return `${estDate.getUTCFullYear()}-${pad(estDate.getUTCMonth()+1)}-${pad(estDate.getUTCDate())} ${pad(estDate.getUTCHours())}:${pad(estDate.getUTCMinutes())} EST`;
+            } else {
+                return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+            }
         }
+
+        // Wire up EST toggle — re-render all date labels on cards without full redraw
+        document.getElementById('timezone-toggle').addEventListener('change', function() {
+            // Force a full re-render so date labels update
+            marketsData = {};
+            loadMarkets();
+        });
 
         // Format seconds into HH:MM:SS countdown string
         function fmtCountdown(secs) {
@@ -524,8 +627,8 @@
                                     </div>
                                 </div>
                                 <div style="color: #666; font-size: 0.78rem;">
-                                    Betting closes: ${formatUTC(market.betting_deadline)} UTC<br>
-                                    ${market.sweat_deadline ? `Game ends: ${formatUTC(market.sweat_deadline)} UTC` : ''}
+                                    Betting closes: ${formatTime(market.betting_deadline)}<br>
+                                    ${market.sweat_deadline ? `Game ends: ${formatTime(market.sweat_deadline)}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
@@ -542,7 +645,7 @@
                                 </div>
                                 <div style="color: #888; font-size: 0.78rem;">
                                     ${market.highest_price_during_sweat ? `Highest: $${market.highest_price_during_sweat.toLocaleString()}<br>` : ''}
-                                    Ends: ${formatUTC(market.sweat_deadline)} UTC
+                                    Ends: ${formatTime(market.sweat_deadline)}
                                 </div>
                             </div>
                         ` : `
@@ -573,12 +676,107 @@
                 const modal = document.getElementById('bet-modal');
                 const content = document.getElementById('modal-content');
 
-                if (currentMarket.phase !== 'betting') {
+                if (currentMarket.phase === 'sweat') {
+                    const target = currentMarket.target_btc_price;
+                    const highest = currentMarket.highest_price_during_sweat || 0;
+                    const sweatDeadlineTs = currentMarket.sweat_deadline
+                        ? Math.floor(new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()/1000)
+                        : 0;
+
+                    content.innerHTML = `
+                        <h2 style="color: #f59e0b; margin-bottom: 20px;">🔥 SWEATING!</h2>
+                        <p style="color: #888; margin-bottom: 24px; font-size: 0.95rem;">${currentMarket.question}</p>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                            <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
+                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Target Price</div>
+                                <div style="font-size: 1.4rem; font-weight: bold; color: var(--btc-orange);">$${target?.toLocaleString()}</div>
+                            </div>
+                            <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
+                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Current BTC Price</div>
+                                <div id="sweat-modal-price" style="font-size: 1.4rem; font-weight: bold; color: white; transition: color 0.4s;">
+                                    ${window.liveBtcPrice ? '$' + window.liveBtcPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="color: #888; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Progress to Target</span>
+                                <span id="sweat-modal-pct" style="color: var(--btc-orange); font-size: 0.85rem; font-weight: bold;"></span>
+                            </div>
+                            <div style="background: #222; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="sweat-modal-bar" style="height: 100%; background: linear-gradient(90deg, var(--btc-orange), var(--yes-green)); border-radius: 4px; transition: width 0.5s ease; width: 0%;"></div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.72rem; color: #555;">
+                                <span>Highest: <span id="sweat-modal-highest">$${highest.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
+                                <span>Needs: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
+                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Game ends in</div>
+                            <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
+                        </div>
+
+                        <div style="text-align: center; color: #555; font-size: 0.8rem;">
+                            Ends: ${formatTime(currentMarket.sweat_deadline)}
+                        </div>
+                    `;
+
+                    // Live update loop for sweat modal
+                    let sweatModalInterval = setInterval(() => {
+                        // Stop if modal was closed
+                        if (!document.getElementById('sweat-modal-price')) {
+                            clearInterval(sweatModalInterval);
+                            return;
+                        }
+
+                        // Update live BTC price
+                        const livePrice = window.liveBtcPrice;
+                        const priceEl = document.getElementById('sweat-modal-price');
+                        if (livePrice && priceEl) {
+                            const formatted = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                            if (priceEl.textContent !== formatted) {
+                                const prev = parseFloat(priceEl.dataset.prev || livePrice);
+                                priceEl.style.color = livePrice > prev ? 'var(--yes-green)' : livePrice < prev ? 'var(--no-red)' : 'white';
+                                setTimeout(() => { if (priceEl) priceEl.style.color = 'white'; }, 500);
+                                priceEl.textContent = formatted;
+                                priceEl.dataset.prev = livePrice;
+
+                                // Update highest seen
+                                const highEl = document.getElementById('sweat-modal-highest');
+                                if (highEl) {
+                                    const currentHighest = parseFloat(highEl.dataset.highest || highest);
+                                    if (livePrice > currentHighest) {
+                                        highEl.dataset.highest = livePrice;
+                                        highEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                    }
+                                }
+
+                                // Update progress bar
+                                const pct = Math.min(100, (livePrice / target) * 100);
+                                const barEl = document.getElementById('sweat-modal-bar');
+                                const pctEl = document.getElementById('sweat-modal-pct');
+                                if (barEl) barEl.style.width = pct.toFixed(1) + '%';
+                                if (pctEl) pctEl.textContent = pct.toFixed(1) + '% of target';
+                            }
+                        }
+
+                        // Update countdown timer
+                        const timerEl = document.getElementById('sweat-modal-timer');
+                        if (timerEl && sweatDeadlineTs) {
+                            const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
+                            timerEl.textContent = fmtCountdown(Math.max(0, left));
+                            timerEl.style.color = left <= 60 ? 'var(--no-red)' : left <= 300 ? '#f59e0b' : '#f59e0b';
+                        }
+                    }, 1000);
+
+                } else if (currentMarket.phase !== 'betting') {
                     content.innerHTML = `
                         <h2>${currentMarket.question}</h2>
                         <div style="text-align: center; padding: 40px; color: #888;">
-                            <p>This market is ${currentMarket.phase === 'sweat' ? '🔥 sweating' : currentMarket.phase}.</p>
-                            ${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : ''}
+                            ${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : '<p>Market is resolved.</p>'}
                         </div>
                     `;
                 } else {
@@ -845,6 +1043,162 @@
 
         loadMarkets();
         setInterval(loadMarkets, 30000);
+
+        // ============================================
+        // BTC LIVE PRICE TICKER
+        // Strategy: Try Coinbase WebSocket first (port 443, browser-friendly)
+        //           Fall back to CoinGecko REST polling if WS fails within 5s
+        // ============================================
+        (function startTicker() {
+            const priceEl  = document.getElementById('ticker-price');
+            const changeEl = document.getElementById('ticker-change');
+            const dotEl    = document.getElementById('ticker-dot');
+            const statusEl = document.getElementById('ticker-status-text');
+
+            let lastPrice     = null;
+            let openPrice     = null;
+            let ws            = null;
+            let usingFallback = false;
+            let fallbackTimer = null;
+            let wsConnected   = false;
+
+            function setStatus(live, label) {
+                dotEl.className      = 'ticker-dot' + (live ? ' live' : '');
+                statusEl.textContent = label || (live ? 'Live' : 'Reconnecting...');
+            }
+
+            function formatPrice(p) {
+                return '$' + Number(p).toLocaleString('en-US', {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2
+                });
+            }
+
+            function updateDisplay(price) {
+                if (!openPrice) return;
+                const diff  = price - openPrice;
+                const pct   = (diff / openPrice) * 100;
+                const dir   = diff >= 0 ? 'up' : 'down';
+                const arrow = diff >= 0 ? '▲' : '▼';
+
+                if (lastPrice !== null && price !== lastPrice) {
+                    priceEl.className = 'ticker-price ' + (price > lastPrice ? 'up' : 'down');
+                    setTimeout(() => { priceEl.className = 'ticker-price'; }, 600);
+                }
+
+                priceEl.textContent    = formatPrice(price);
+                changeEl.style.display = '';
+                changeEl.className     = 'ticker-change ' + dir;
+                changeEl.textContent   = `${arrow} ${Math.abs(pct).toFixed(2)}% (${diff >= 0 ? '+' : ''}${formatPrice(diff)})`;
+                lastPrice = price;
+                window.liveBtcPrice = price;
+            }
+
+            // Fetch 24h open price from Coinbase stats
+            async function fetchOpenPrice() {
+                try {
+                    const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats');
+                    const d = await r.json();
+                    openPrice = parseFloat(d.open);
+                } catch(e) {
+                    console.log('[Ticker] Could not fetch open price:', e);
+                }
+            }
+
+            // --- REST POLLING FALLBACK (CoinGecko) ---
+            let pollInterval = null;
+            async function pollCoinGecko() {
+                try {
+                    const r = await fetch(
+                        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true',
+                        { cache: 'no-store' }
+                    );
+                    const d = await r.json();
+                    const price  = d.bitcoin.usd;
+                    const change = d.bitcoin.usd_24h_change;
+                    if (!openPrice) openPrice = price / (1 + change / 100);
+                    updateDisplay(price);
+                    window.liveBtcPrice = price;
+                    setStatus(true, 'Live (polling)');
+                } catch(e) {
+                    setStatus(false, 'No feed');
+                }
+            }
+
+            function startFallback() {
+                if (usingFallback) return;
+                usingFallback = true;
+                if (ws) { try { ws.close(); } catch(e){} ws = null; }
+                console.log('[Ticker] WebSocket failed, switching to REST polling');
+                pollCoinGecko();
+                pollInterval = setInterval(pollCoinGecko, 15000);
+            }
+
+            // --- COINBASE WEBSOCKET ---
+            function connectWS() {
+                if (usingFallback) return;
+                wsConnected = false;
+
+                fallbackTimer = setTimeout(() => {
+                    if (!wsConnected) {
+                        console.log('[Ticker] WS timeout, switching to REST');
+                        startFallback();
+                    }
+                }, 5000);
+
+                try {
+                    ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
+
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({
+                            type: 'subscribe',
+                            product_ids: ['BTC-USD'],
+                            channel: 'ticker'
+                        }));
+                    };
+
+                    ws.onmessage = (e) => {
+                        try {
+                            const msg = JSON.parse(e.data);
+                            const events = msg.events || [];
+                            for (const ev of events) {
+                                const tickers = ev.tickers || [];
+                                for (const t of tickers) {
+                                    if (t.product_id !== 'BTC-USD') continue;
+                                    const price = parseFloat(t.price);
+                                    if (!price) continue;
+                                    wsConnected = true;
+                                    clearTimeout(fallbackTimer);
+                                    updateDisplay(price);
+                                    setStatus(true, 'Live');
+                                }
+                            }
+                        } catch(err) {}
+                    };
+
+                    ws.onerror = () => { if (!wsConnected) startFallback(); };
+
+                    ws.onclose = () => {
+                        if (!usingFallback && wsConnected) {
+                            setStatus(false);
+                            setTimeout(connectWS, 5000);
+                        } else if (!usingFallback) {
+                            startFallback();
+                        }
+                    };
+
+                } catch(e) {
+                    startFallback();
+                }
+            }
+
+            fetchOpenPrice().then(connectWS);
+        })();
+        // ============================================
+        // END TICKER
+        // ============================================
+        // ============================================
+        // END TICKER
+        // ============================================
     </script>
 </body>
 </html>
