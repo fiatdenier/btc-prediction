@@ -206,6 +206,35 @@
         .direction-option label .dir-desc  { font-size: 0.78rem; color: #888; text-align: center; }
 
         .direction-option input[type="radio"]:checked + label .dir-desc { color: #aaa; }
+
+        /* Category tabs for create form */
+        .create-tabs {
+            display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;
+        }
+        .create-tab {
+            padding: 9px 22px; border-radius: 20px;
+            border: 2px solid var(--border-color);
+            background: transparent; color: #888;
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .create-tab:hover        { border-color: var(--btc-orange); color: var(--btc-orange); }
+        .create-tab.active       { background: var(--btc-orange); border-color: var(--btc-orange); color: #000; }
+        .create-tab.tab-stocks:hover  { border-color: #3b82f6; color: #3b82f6; }
+        .create-tab.tab-stocks.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+        .create-tab.tab-sports:hover  { border-color: #a855f7; color: #a855f7; }
+        .create-tab.tab-sports.active { background: #a855f7; border-color: #a855f7; color: #fff; }
+
+        /* Show/hide per-category form panels */
+        .cat-form { display: none; }
+        .cat-form.active { display: block; }
+
+        /* Category badge in market list */
+        .cat-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .cat-stocks { background: rgba(59,130,246,0.18); color: #3b82f6; border: 1px solid #3b82f6; }
+        .cat-sports { background: rgba(168,85,247,0.18); color: #a855f7; border: 1px solid #a855f7; }
     </style>
 </head>
 <body>
@@ -228,85 +257,191 @@
 
         <!-- Create New Market -->
         <div class="section">
-            <h2>➕ Create New Two-Phase Market</h2>
+            <h2>➕ Create New Market</h2>
 
-            <div class="form-group">
-                <label>Question</label>
-                <textarea id="new-question" rows="2" placeholder="Will Bitcoin drop below $60,000?"></textarea>
+            <!-- Category tabs -->
+            <div class="create-tabs">
+                <button class="create-tab active"      data-cat="bitcoin" onclick="switchCat(this)">₿ Bitcoin</button>
+                <button class="create-tab tab-stocks"  data-cat="stocks"  onclick="switchCat(this)">📈 Stocks</button>
+                <button class="create-tab tab-sports"  data-cat="sports"  onclick="switchCat(this)">🏆 Sports</button>
             </div>
 
-            <!-- DIRECTION SELECTOR -->
-            <div class="form-group">
-                <label style="margin-bottom:10px;">Market Direction — Which way does BTC need to move for YES to win?</label>
-                <div class="direction-selector">
-                    <div class="direction-option">
-                        <input type="radio" name="direction" id="dir-up" value="up" checked>
-                        <label for="dir-up">
-                            <span class="dir-icon">🚀</span>
-                            <span class="dir-title">▲ PUMP (UP)</span>
-                            <span class="dir-desc">YES wins if BTC rises <em>above</em> the target price</span>
-                        </label>
-                    </div>
-                    <div class="direction-option">
-                        <input type="radio" name="direction" id="dir-down" value="down">
-                        <label for="dir-down">
-                            <span class="dir-icon">📉</span>
-                            <span class="dir-title">▼ DROP (DOWN)</span>
-                            <span class="dir-desc">YES wins if BTC falls <em>below</em> the target price</span>
-                        </label>
+            <!-- ══ BITCOIN ══ -->
+            <div class="cat-form active" id="cat-bitcoin">
+                <div class="form-group">
+                    <label>Question</label>
+                    <textarea id="btc-question" rows="2" placeholder="Will Bitcoin drop below $60,000?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label style="margin-bottom:10px;">Market Direction</label>
+                    <div class="direction-selector">
+                        <div class="direction-option">
+                            <input type="radio" name="direction" id="dir-up" value="up" checked>
+                            <label for="dir-up">
+                                <span class="dir-icon">🚀</span>
+                                <span class="dir-title">▲ PUMP (UP)</span>
+                                <span class="dir-desc">YES wins if BTC rises <em>above</em> the target price</span>
+                            </label>
+                        </div>
+                        <div class="direction-option">
+                            <input type="radio" name="direction" id="dir-down" value="down">
+                            <label for="dir-down">
+                                <span class="dir-icon">📉</span>
+                                <span class="dir-title">▼ DROP (DOWN)</span>
+                                <span class="dir-desc">YES wins if BTC falls <em>below</em> the target price</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label>Target BTC Price ($)</label>
-                <input type="number" id="target-price" placeholder="60000" step="1000" required oninput="updateConditionPreview()">
-                <div id="condition-preview" style="margin-top:-8px;padding:10px 14px;background:rgba(247,147,26,0.08);border:1px solid rgba(247,147,26,0.3);border-radius:8px;font-size:0.88rem;color:#aaa;display:none;">
+                <div class="form-group">
+                    <label>Target BTC Price ($)</label>
+                    <input type="number" id="target-price" placeholder="60000" step="1000" oninput="updateConditionPreview()">
+                    <div id="condition-preview" style="margin-top:-8px;padding:10px 14px;background:rgba(247,147,26,0.08);border:1px solid rgba(247,147,26,0.3);border-radius:8px;font-size:0.88rem;color:#aaa;display:none;"></div>
                 </div>
+
+                <div class="phase-box phase-betting">
+                    <h3 style="color:#22c55e;margin-bottom:15px;">⏰ Phase 1: BETTING PHASE</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Betting End Date</label>
+                            <input type="date" id="btc-betting-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Betting End Time (UTC)</label>
+                            <input type="time" id="btc-betting-time" value="22:00">
+                        </div>
+                    </div>
+                    <p style="color:#888;font-size:0.85rem;">Users can place bets until this time. Default: 3 days.</p>
+                </div>
+
+                <div class="phase-box phase-sweat">
+                    <h3 style="color:#f59e0b;margin-bottom:15px;">🔥 Phase 2: SWEAT PHASE</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Sweat End Date</label>
+                            <input type="date" id="btc-sweat-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Sweat End Time (UTC)</label>
+                            <input type="time" id="btc-sweat-time" value="22:00">
+                        </div>
+                    </div>
+                    <p style="color:#888;font-size:0.85rem;">🚫 No betting. Price monitored for sudden death. Default: 7 days after betting ends.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>House Rake (%)</label>
+                    <input type="number" id="btc-rake" value="5" min="0" max="100" step="0.1">
+                </div>
+
+                <button class="action-btn btn-success" onclick="createMarket('bitcoin')">🚀 CREATE BITCOIN MARKET</button>
             </div>
 
-            <div class="phase-box phase-betting">
-                <h3 style="color:#22c55e;margin-bottom:15px;">⏰ Phase 1: BETTING PHASE</h3>
-                <div class="datetime-group">
-                    <div class="form-group">
-                        <label>Betting End Date</label>
-                        <input type="date" id="betting-date" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Betting End Time (UTC)</label>
-                        <input type="time" id="betting-time" value="23:59">
+            <!-- ══ STOCKS ══ -->
+            <div class="cat-form" id="cat-stocks">
+                <p style="color:#888;margin-bottom:20px;font-size:0.9rem;">Admin manually resolves YES or NO after the event. No automatic price monitoring.</p>
+
+                <div class="form-group">
+                    <label>Question</label>
+                    <textarea id="stocks-question" rows="2" placeholder="Will Apple (AAPL) close above $250 by March 31?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Resolution Source <span style="color:#555;font-size:0.8rem;">(appended to question for transparency)</span></label>
+                    <input type="text" id="stocks-source" placeholder="e.g. Yahoo Finance closing price on March 31, 2026">
+                </div>
+
+                <div class="phase-box phase-betting">
+                    <h3 style="color:#22c55e;margin-bottom:15px;">⏰ Betting Phase</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Betting End Date</label>
+                            <input type="date" id="stocks-betting-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Betting End Time (UTC)</label>
+                            <input type="time" id="stocks-betting-time" value="22:00">
+                        </div>
                     </div>
                 </div>
-                <p style="color:#888;font-size:0.85rem;">Users can place bets until this time. Typically 7 days.</p>
+
+                <div class="phase-box phase-sweat">
+                    <h3 style="color:#f59e0b;margin-bottom:15px;">📅 Resolution Deadline</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Resolution Date</label>
+                            <input type="date" id="stocks-sweat-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Resolution Time (UTC)</label>
+                            <input type="time" id="stocks-sweat-time" value="22:00">
+                        </div>
+                    </div>
+                    <p style="color:#888;font-size:0.85rem;">Market auto-resolves NO if admin hasn't resolved it by this time.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>House Rake (%)</label>
+                    <input type="number" id="stocks-rake" value="5" min="0" max="100" step="0.1">
+                </div>
+
+                <button class="action-btn" style="background:#3b82f6;" onclick="createMarket('stocks')">📈 CREATE STOCKS MARKET</button>
             </div>
 
-            <div class="phase-box phase-sweat">
-                <h3 style="color:#f59e0b;margin-bottom:15px;">🔥 Phase 2: SWEAT PHASE</h3>
-                <div class="datetime-group">
-                    <div class="form-group">
-                        <label>Sweat End Date</label>
-                        <input type="date" id="sweat-date" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Sweat End Time (UTC)</label>
-                        <input type="time" id="sweat-time" value="23:59">
+            <!-- ══ SPORTS ══ -->
+            <div class="cat-form" id="cat-sports">
+                <p style="color:#888;margin-bottom:20px;font-size:0.9rem;">Admin manually resolves YES or NO after the event. No automatic price monitoring.</p>
+
+                <div class="form-group">
+                    <label>Question</label>
+                    <textarea id="sports-question" rows="2" placeholder="Will the Lakers win the NBA Championship 2026?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Resolution Source <span style="color:#555;font-size:0.8rem;">(appended to question for transparency)</span></label>
+                    <input type="text" id="sports-source" placeholder="e.g. NBA official result, ESPN">
+                </div>
+
+                <div class="phase-box phase-betting">
+                    <h3 style="color:#22c55e;margin-bottom:15px;">⏰ Betting Phase</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Betting End Date</label>
+                            <input type="date" id="sports-betting-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Betting End Time (UTC)</label>
+                            <input type="time" id="sports-betting-time" value="22:00">
+                        </div>
                     </div>
                 </div>
-                <p style="color:#888;font-size:0.85rem;">
-                    🚫 No betting allowed. Price monitored for sudden death. Typically 7 days after betting ends.
-                </p>
+
+                <div class="phase-box phase-sweat">
+                    <h3 style="color:#f59e0b;margin-bottom:15px;">📅 Resolution Deadline</h3>
+                    <div class="datetime-group">
+                        <div class="form-group">
+                            <label>Resolution Date</label>
+                            <input type="date" id="sports-sweat-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Resolution Time (UTC)</label>
+                            <input type="time" id="sports-sweat-time" value="22:00">
+                        </div>
+                    </div>
+                    <p style="color:#888;font-size:0.85rem;">Market auto-resolves NO if admin hasn't resolved it by this time.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>House Rake (%)</label>
+                    <input type="number" id="sports-rake" value="5" min="0" max="100" step="0.1">
+                </div>
+
+                <button class="action-btn" style="background:#a855f7;" onclick="createMarket('sports')">🏆 CREATE SPORTS MARKET</button>
             </div>
 
-            <div class="form-group">
-                <label>House Rake (%)</label>
-                <input type="number" id="new-rake" value="5" min="0" max="100" step="0.1">
-            </div>
-
-            <button class="action-btn btn-success" onclick="createMarket()">
-                🚀 CREATE TWO-PHASE MARKET
-            </button>
-
-            <div id="create-result"></div>
+            <div id="create-result" style="margin-top:20px;"></div>
         </div>
 
         <!-- All Markets -->
@@ -362,85 +497,154 @@
         loadMarkets();
     }
 
-    function setDefaultDate() {
-        const bettingDate = new Date();
-        bettingDate.setDate(bettingDate.getDate() + 7);
-        document.getElementById('betting-date').value = bettingDate.toISOString().split('T')[0];
-
-        const sweatDate = new Date();
-        sweatDate.setDate(sweatDate.getDate() + 14);
-        document.getElementById('sweat-date').value = sweatDate.toISOString().split('T')[0];
+    function switchCat(btn) {
+        document.querySelectorAll('.create-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.cat-form').forEach(f => f.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('cat-' + btn.dataset.cat).classList.add('active');
+        document.getElementById('create-result').innerHTML = '';
     }
 
-    async function createMarket() {
-        const question    = document.getElementById('new-question').value.trim();
-        const bettingDate = document.getElementById('betting-date').value;
-        const bettingTime = document.getElementById('betting-time').value;
-        const sweatDate   = document.getElementById('sweat-date').value;
-        const sweatTime   = document.getElementById('sweat-time').value;
-        const targetPrice = parseFloat(document.getElementById('target-price').value);
-        const rake        = parseFloat(document.getElementById('new-rake').value);
-        const direction   = document.querySelector('input[name="direction"]:checked')?.value || 'up';
+    function addDays(n) {
+        const d = new Date();
+        d.setDate(d.getDate() + n);
+        return d.toISOString().split('T')[0];
+    }
 
-        if (!question)                            { alert('Please enter a question'); return; }
-        if (!bettingDate || !sweatDate || !targetPrice) { alert('Please fill in all required fields'); return; }
+    function setDefaultDate() {
+        document.getElementById('btc-betting-date').value    = addDays(3);
+        document.getElementById('btc-sweat-date').value      = addDays(10);
+        document.getElementById('stocks-betting-date').value = addDays(3);
+        document.getElementById('stocks-sweat-date').value   = addDays(14);
+        document.getElementById('sports-betting-date').value = addDays(3);
+        document.getElementById('sports-sweat-date').value   = addDays(30);
+    }
 
-        const betting_deadline = `${bettingDate}T${bettingTime}:00Z`;
-        const sweat_deadline   = `${sweatDate}T${sweatTime}:00Z`;
+    function err(msg) {
+        document.getElementById('create-result').innerHTML =
+            `<div class="alert alert-danger"><strong>❌</strong> ${msg}</div>`;
+    }
 
-        if (new Date(sweat_deadline) <= new Date(betting_deadline)) {
-            alert('Sweat deadline must be after betting deadline!');
-            return;
-        }
-
+    async function createMarket(category) {
         const resultDiv = document.getElementById('create-result');
         resultDiv.innerHTML = '<div style="color:#888;">Creating market...</div>';
+        let payload;
+
+        if (category === 'bitcoin') {
+            const question    = document.getElementById('btc-question').value.trim();
+            const targetPrice = parseFloat(document.getElementById('target-price').value);
+            const rake        = parseFloat(document.getElementById('btc-rake').value);
+            const direction   = document.querySelector('input[name="direction"]:checked')?.value || 'up';
+            const bDate = document.getElementById('btc-betting-date').value;
+            const bTime = document.getElementById('btc-betting-time').value;
+            const sDate = document.getElementById('btc-sweat-date').value;
+            const sTime = document.getElementById('btc-sweat-time').value;
+
+            if (!question)               return err('Please enter a question');
+            if (!targetPrice || isNaN(targetPrice)) return err('Please enter a target price');
+            if (!bDate || !sDate)        return err('Please fill in all dates');
+
+            const betting_deadline = `${bDate}T${bTime}:00Z`;
+            const sweat_deadline   = `${sDate}T${sTime}:00Z`;
+            if (new Date(sweat_deadline) <= new Date(betting_deadline))
+                return err('Sweat deadline must be after betting deadline');
+
+            payload = { question, betting_deadline, sweat_deadline,
+                        target_btc_price: targetPrice, house_rake: rake,
+                        direction, category: 'bitcoin' };
+
+        } else if (category === 'stocks') {
+            const question = document.getElementById('stocks-question').value.trim();
+            const source   = document.getElementById('stocks-source').value.trim();
+            const rake     = parseFloat(document.getElementById('stocks-rake').value);
+            const bDate = document.getElementById('stocks-betting-date').value;
+            const bTime = document.getElementById('stocks-betting-time').value;
+            const sDate = document.getElementById('stocks-sweat-date').value;
+            const sTime = document.getElementById('stocks-sweat-time').value;
+
+            if (!question)        return err('Please enter a question');
+            if (!bDate || !sDate) return err('Please fill in all dates');
+
+            const betting_deadline = `${bDate}T${bTime}:00Z`;
+            const sweat_deadline   = `${sDate}T${sTime}:00Z`;
+            if (new Date(sweat_deadline) <= new Date(betting_deadline))
+                return err('Resolution deadline must be after betting deadline');
+
+            const fullQ = source ? `${question} [${source}]` : question;
+            payload = { question: fullQ, betting_deadline, sweat_deadline,
+                        target_btc_price: null, house_rake: rake,
+                        direction: 'up', category: 'stocks' };
+
+        } else if (category === 'sports') {
+            const question = document.getElementById('sports-question').value.trim();
+            const source   = document.getElementById('sports-source').value.trim();
+            const rake     = parseFloat(document.getElementById('sports-rake').value);
+            const bDate = document.getElementById('sports-betting-date').value;
+            const bTime = document.getElementById('sports-betting-time').value;
+            const sDate = document.getElementById('sports-sweat-date').value;
+            const sTime = document.getElementById('sports-sweat-time').value;
+
+            if (!question)        return err('Please enter a question');
+            if (!bDate || !sDate) return err('Please fill in all dates');
+
+            const betting_deadline = `${bDate}T${bTime}:00Z`;
+            const sweat_deadline   = `${sDate}T${sTime}:00Z`;
+            if (new Date(sweat_deadline) <= new Date(betting_deadline))
+                return err('Resolution deadline must be after betting deadline');
+
+            const fullQ = source ? `${question} [${source}]` : question;
+            payload = { question: fullQ, betting_deadline, sweat_deadline,
+                        target_btc_price: null, house_rake: rake,
+                        direction: 'up', category: 'sports' };
+        }
 
         try {
-            const payload = {
-                question,
-                betting_deadline,
-                sweat_deadline,
-                target_btc_price: targetPrice,
-                house_rake: rake,
-                direction   // NEW
-            };
-
-            const response = await fetch(`${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
+            const response = await fetch(
+                `${API_BASE}/admin/create-market?key=${encodeURIComponent(adminKey)}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload) }
+            );
             const data = await response.json();
 
             if (data.error) {
                 resultDiv.innerHTML = `<div class="alert alert-danger"><strong>❌ Error:</strong> ${data.error}</div>`;
             } else {
-                const dirStr = direction === 'down'
-                    ? `▼ YES wins if BTC drops BELOW $${targetPrice.toLocaleString()}`
-                    : `▲ YES wins if BTC pumps ABOVE $${targetPrice.toLocaleString()}`;
+                const icons = { bitcoin: '₿', stocks: '📈', sports: '🏆' };
+                let extra = '';
+                if (category === 'bitcoin') {
+                    const dir = payload.direction;
+                    extra = `Direction: <strong>${dir === 'down'
+                        ? '▼ YES wins if BTC drops BELOW $' + payload.target_btc_price.toLocaleString()
+                        : '▲ YES wins if BTC pumps ABOVE $' + payload.target_btc_price.toLocaleString()}</strong><br>`;
+                }
                 resultDiv.innerHTML = `
                     <div class="alert alert-success">
                         <strong>✅ ${data.status}</strong><br>
+                        ${icons[category]} Category: <strong>${category.toUpperCase()}</strong><br>
                         Market ID: <code>${data.market_id}</code><br>
                         Question: ${data.market.question}<br>
-                        Direction: <strong>${dirStr}</strong><br>
-                        Betting ends: ${betting_deadline}<br>
-                        Sweat ends: ${sweat_deadline}
-                    </div>
-                `;
+                        ${extra}
+                        Betting ends: ${payload.betting_deadline}<br>
+                        ${category === 'bitcoin' ? 'Sweat' : 'Resolution'} ends: ${payload.sweat_deadline}
+                    </div>`;
 
-                document.getElementById('new-question').value = '';
-                document.getElementById('target-price').value = '';
-                document.getElementById('new-rake').value = '5';
-                document.getElementById('condition-preview').style.display = 'none';
-                document.getElementById('dir-up').checked = true;
+                // Reset the active form
+                if (category === 'bitcoin') {
+                    document.getElementById('btc-question').value = '';
+                    document.getElementById('target-price').value = '';
+                    document.getElementById('condition-preview').style.display = 'none';
+                    document.getElementById('dir-up').checked = true;
+                } else if (category === 'stocks') {
+                    document.getElementById('stocks-question').value = '';
+                    document.getElementById('stocks-source').value = '';
+                } else {
+                    document.getElementById('sports-question').value = '';
+                    document.getElementById('sports-source').value = '';
+                }
                 setDefaultDate();
                 setTimeout(() => loadMarkets(), 1000);
             }
-        } catch (error) {
-            console.error('Create market failed:', error);
+        } catch (e) {
             resultDiv.innerHTML = `<div class="alert alert-danger"><strong>❌ Error:</strong> Failed to create market</div>`;
         }
     }
@@ -473,13 +677,20 @@
                                : phase === 'sweat'    ? '🔥 SWEAT'
                                : '✅ RESOLVED';
 
-            const dirBadge = isDown
-                ? '<span class="dir-badge dir-down">▼ DROP</span>'
-                : '<span class="dir-badge dir-up">▲ PUMP</span>';
+            const category = market.category || 'bitcoin';
+            const dirBadge = category === 'stocks'
+                ? '<span class="cat-badge cat-stocks">📈 STOCKS</span>'
+                : category === 'sports'
+                    ? '<span class="cat-badge cat-sports">🏆 SPORTS</span>'
+                    : (isDown
+                        ? '<span class="dir-badge dir-down">▼ DROP</span>'
+                        : '<span class="dir-badge dir-up">▲ PUMP</span>');
 
-            const condStr = isDown
-                ? `YES if BTC < $${Number(market.target_btc_price).toLocaleString()}`
-                : `YES if BTC > $${Number(market.target_btc_price).toLocaleString()}`;
+            const condStr = category !== 'bitcoin'
+                ? 'Admin resolves YES / NO'
+                : (isDown
+                    ? `YES if BTC < $${Number(market.target_btc_price).toLocaleString()}`
+                    : `YES if BTC > $${Number(market.target_btc_price).toLocaleString()}`);
 
             // Show correct extreme tracker
             const extremeLabel = isDown ? 'Lowest seen' : 'Highest seen';

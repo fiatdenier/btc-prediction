@@ -193,42 +193,6 @@
             color: #ccc;
         }
 
-        .category-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-
-        .category-tab {
-            padding: 8px 20px;
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-            background: transparent;
-            color: #888;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            letter-spacing: 0.3px;
-        }
-
-        .category-tab:hover {
-            border-color: var(--btc-orange);
-            color: var(--btc-orange);
-        }
-
-        .category-tab.active {
-            background: var(--btc-orange);
-            border-color: var(--btc-orange);
-            color: #000;
-        }
-
-        .category-tab.tab-stocks.active  { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-        .category-tab.tab-stocks:hover   { border-color: #3b82f6; color: #3b82f6; }
-        .category-tab.tab-sports.active  { background: #a855f7; border-color: #a855f7; color: #fff; }
-        .category-tab.tab-sports:hover   { border-color: #a855f7; color: #a855f7; }
-
         /* BTC Live Ticker */
         .btc-ticker {
             display: flex;
@@ -462,14 +426,6 @@
         </div>
 
         <h2 class="section-title">🔥 Active Markets</h2>
-
-        <div class="category-tabs">
-            <button class="category-tab active"        data-cat="all"     onclick="setTab(this)">All</button>
-            <button class="category-tab"               data-cat="bitcoin" onclick="setTab(this)">₿ Bitcoin</button>
-            <button class="category-tab tab-stocks"    data-cat="stocks"  onclick="setTab(this)">📈 Stocks</button>
-            <button class="category-tab tab-sports"    data-cat="sports"  onclick="setTab(this)">🏆 Sports</button>
-        </div>
-
         <div id="active-markets" class="markets-grid">
             <div class="loading">Loading markets...</div>
         </div>
@@ -579,27 +535,6 @@
         }
 
         let marketsData = {}; // Cache market data by id
-        let activeTab = 'all'; // currently selected category tab
-
-        function setTab(btn) {
-            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
-            btn.classList.add('active');
-            activeTab = btn.dataset.cat;
-            // Re-render with current cached data filtered to new tab
-            const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
-            displayMarkets(filterByTab(all), 'active-markets');
-        }
-
-        function filterByTab(markets) {
-            if (activeTab === 'all') return markets;
-            return markets.filter(m => (m.category || 'bitcoin') === activeTab);
-        }
-
-        function categoryBadge(category) {
-            if (category === 'stocks')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(59,130,246,0.18);color:#3b82f6;border:1px solid #3b82f6;">📈 STOCKS</span>';
-            if (category === 'sports')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(168,85,247,0.18);color:#a855f7;border:1px solid #a855f7;">🏆 SPORTS</span>';
-            return ''; // bitcoin — direction badge already shown
-        }
 
         // Returns the direction arrow + label badge for a market
         function directionLabel(direction) {
@@ -610,8 +545,6 @@
 
         // Returns a human-readable win condition string
         function conditionText(market) {
-            const cat = market.category || 'bitcoin';
-            if (cat !== 'bitcoin') return 'YES wins if the correct outcome is resolved';
             const price = market.target_btc_price;
             const d = market.direction || 'up';
             const fmt = p => '$' + Number(p).toLocaleString();
@@ -634,14 +567,14 @@
                 const cachedIds = Object.keys(marketsData).filter(id => marketsData[id]._container === 'active-markets').sort().join(',');
 
                 if (activeIds !== cachedIds) {
-                    // Full render needed — apply tab filter
-                    displayMarkets(filterByTab(active), 'active-markets');
+                    // Full render needed
+                    displayMarkets(active, 'active-markets');
                 } else {
                     // Just update the numbers in-place, don't touch timer DOM
                     active.forEach(m => updateMarketCard(m));
                 }
 
-                // Update cache (always store full list, tab filter applied at render time)
+                // Update cache
                 active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
 
                 const resolvedSection = document.getElementById('resolved-section');
@@ -698,7 +631,7 @@
                     <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div>
                             <span class="status-badge status-${market.status}">${market.status}</span>
-                            ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category) : directionLabel(direction)}
+                            ${directionLabel(direction)}
                         </div>
                         <div class="market-question">${market.question}</div>
                         
