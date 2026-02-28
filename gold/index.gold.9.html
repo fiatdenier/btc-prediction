@@ -744,10 +744,9 @@
                                     ${isDown ? '📉 SWEATING!' : '🔥 SWEATING!'}
                                 </div>
                                 <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 8px;">${conditionText(market)}</div>
-                                ${(market.category || 'bitcoin') === 'bitcoin' ? `
                                 <div style="color: #fff; font-size: 1rem; margin-bottom: 8px;">
                                     Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
-                                </div>` : ''}
+                                </div>
                                 <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
                                     <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                     <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
@@ -813,7 +812,6 @@
                             ${conditionText(currentMarket)}
                         </div>
 
-                        ${                        (currentMarket.category || 'bitcoin') === 'bitcoin' ? `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                             <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
                                 <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Target Price</div>
@@ -840,12 +838,8 @@
                                 <span>${extremeLabel}: <span id="sweat-modal-extreme" data-val="${extremeVal||''}">${extremeVal ? '$'+Number(extremeVal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'}</span></span>
                                 <span>Needs: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
                             </div>
-                        </div>` : `
-                        <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                            <div style="font-size: 2rem; margin-bottom: 10px;">${(currentMarket.category || 'bitcoin') === 'sports' ? '🏆' : '📈'}</div>
-                            <div style="color: #aaa; font-size: 0.9rem; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Awaiting Result</div>
-                            <div style="color: #fff; font-size: 1rem;">Admin resolves YES or NO after the event ends.</div>
-                        </div>`}
+                        </div>
+
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
                             <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Game ends in</div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
@@ -858,17 +852,6 @@
 
                     // Live update loop for sweat modal
                     let sweatModalInterval = setInterval(() => {
-                        // Update countdown timer (all categories)
-                        const timerEl = document.getElementById('sweat-modal-timer');
-                        if (timerEl && sweatDeadlineTs) {
-                            const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
-                            timerEl.textContent = fmtCountdown(Math.max(0, left));
-                            timerEl.style.color = left <= 60 ? 'var(--no-red)' : '#f59e0b';
-                        }
-
-                        // Price tracking only for bitcoin markets
-                        if ((currentMarket.category || 'bitcoin') !== 'bitcoin') return;
-
                         // Stop if modal was closed
                         if (!document.getElementById('sweat-modal-price')) {
                             clearInterval(sweatModalInterval);
@@ -907,7 +890,13 @@
                             }
                         }
 
-                        // (countdown updated at top of interval for all categories)
+                        // Update countdown timer
+                        const timerEl = document.getElementById('sweat-modal-timer');
+                        if (timerEl && sweatDeadlineTs) {
+                            const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
+                            timerEl.textContent = fmtCountdown(Math.max(0, left));
+                            timerEl.style.color = left <= 60 ? 'var(--no-red)' : left <= 300 ? '#f59e0b' : '#f59e0b';
+                        }
                     }, 1000);
 
                 } else if (currentMarket.phase !== 'betting') {
