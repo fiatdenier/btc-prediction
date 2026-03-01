@@ -637,10 +637,6 @@
                 if (activeKey !== cachedKey) {
                     // Full render needed — phase/status changed or markets added/removed
                     displayMarkets(filterByTab(active), 'active-markets');
-                    // Re-fetch card scores immediately after re-render so they don't flash "Loading..."
-                    active.forEach(m => {
-                        if (m.phase === 'sweat' && (m.category || 'bitcoin') === 'sports') fetchCardScore(m.id);
-                    });
                 } else {
                     // Just update the numbers in-place, don't touch timer DOM
                     active.forEach(m => updateMarketCard(m));
@@ -674,10 +670,6 @@
             if (yesEl) yesEl.textContent = market.yes_percentage + '%';
             if (noEl) noEl.textContent = market.no_percentage + '%';
             if (poolEl) poolEl.textContent = market.total_pool.toLocaleString() + ' sats';
-            // Refresh card score for sports sweat markets (score div already exists, just update)
-            if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                fetchCardScore(market.id);
-            }
         }
 
         function displayMarkets(markets, containerId) {
@@ -762,10 +754,7 @@
                                 ${(market.category || 'bitcoin') === 'bitcoin' ? `
                                 <div style="color: #fff; font-size: 1rem; margin-bottom: 8px;">
                                     Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
-                                </div>` : `
-                                <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
-                                    Loading score...
-                                </div>`}
+                                </div>` : ''}
                                 <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
                                     <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                     <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
@@ -786,44 +775,6 @@
                     startCardTimers(market);
                 }
             });
-
-            // Fetch live scores for sports sweat cards
-            markets.forEach(market => {
-                if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                    fetchCardScore(market.id);
-                }
-            });
-        }
-
-        // Fetch and render score into a market card's score div
-        async function fetchCardScore(marketId) {
-            const el = document.getElementById('card-score-' + marketId);
-            if (!el) return;
-            try {
-                const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
-                const d = await r.json();
-                if (d.error || (d.home_score === null && d.away_score === null)) {
-                    el.textContent = d.status === 'pre_game' ? 'Game not started yet' : 'Score unavailable';
-                    return;
-                }
-                const { status, home_team, away_team, home_score, away_score, period_label } = d;
-                const homeLead = (home_score ?? 0) > (away_score ?? 0);
-                const awayLead = (away_score ?? 0) > (home_score ?? 0);
-                const statusLine = status === 'completed'
-                    ? '<span style="color:var(--yes-green);font-weight:bold;font-size:0.75rem;">✅ FINAL</span>'
-                    : '<span style="color:var(--yes-green);font-weight:bold;font-size:0.75rem;">🟢 LIVE' + (period_label ? ' · ' + period_label : '') + '</span>';
-                el.innerHTML =
-                    '<div style="margin-bottom:5px;">' + statusLine + '</div>' +
-                    '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + (homeLead ? '#fff' : '#aaa') + ';font-weight:' + (homeLead ? 'bold' : 'normal') + ';">' +
-                        '<span>' + home_team + '</span><span style="font-family:monospace;color:' + (homeLead ? 'var(--yes-green)' : '#888') + ';">' + (home_score ?? '—') + '</span>' +
-                    '</div>' +
-                    '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + (awayLead ? '#fff' : '#aaa') + ';font-weight:' + (awayLead ? 'bold' : 'normal') + ';">' +
-                        '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (awayLead ? 'var(--yes-green)' : '#888') + ';">' + (away_score ?? '—') + '</span>' +
-                    '</div>';
-            } catch(e) {
-                const el2 = document.getElementById('card-score-' + marketId);
-                if (el2) el2.textContent = 'Score unavailable';
-            }
         }
 
         async function openMarket(marketId) {
@@ -960,7 +911,8 @@
                     }, 1000);
 
                 // ── Live score polling for sports markets ──────────────────────────
-                if ((currentMarket.category || 'bitcoin') === 'sports') {
+                // No category gate — fetchLiveScore exits early if score-panel doesn't exist
+                {
                     async function fetchLiveScore() {
                         const panel = document.getElementById('score-panel');
                         if (!panel) return;
@@ -1064,12 +1016,46 @@
                 // ───────────────────────────────────────────────────────────────
 
                 } else if (currentMarket.phase !== 'betting') {
+                    const _isSports = (currentMarket.category || 'bitcoin') === 'sports';
                     content.innerHTML = `
-                        <h2>${currentMarket.question}</h2>
-                        <div style="text-align: center; padding: 40px; color: #888;">
-                            ${currentMarket.outcome ? `<p style="margin-top: 20px; font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : '<p>Market is resolved.</p>'}
+                        <h2 style="margin-bottom: 16px;">${currentMarket.question}</h2>
+                        ${_isSports ? `<div id="score-panel" style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px;"><div style="text-align:center; color:#888; font-size:0.85rem;">Loading score...</div></div>` : ''}
+                        <div style="text-align: center; padding: 20px 40px; color: #888;">
+                            ${currentMarket.outcome ? `<p style="font-size: 1.5rem;">Outcome: <strong style="color: var(--btc-orange);">${currentMarket.outcome}</strong></p>` : '<p>Market is resolved.</p>'}
                         </div>
                     `;
+                    if (_isSports) {
+                        (async function() {
+                            const panel = document.getElementById('score-panel');
+                            if (!panel) return;
+                            try {
+                                const r = await fetch(`${API_BASE}/market/${currentMarket.id}/live-score`);
+                                const d = await r.json();
+                                if (d.error || (d.home_score === null && d.away_score === null)) {
+                                    panel.innerHTML = '<div style="text-align:center;color:#555;font-size:0.85rem;">Score unavailable</div>';
+                                    return;
+                                }
+                                const { status, home_team, away_team, home_score, away_score, period_label } = d;
+                                const homeLead = (home_score ?? 0) > (away_score ?? 0);
+                                const awayLead = (away_score ?? 0) > (home_score ?? 0);
+                                const badge = status === 'completed'
+                                    ? '<span style="color:var(--yes-green);font-size:0.72rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;">✅ FINAL</span>'
+                                    : '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--yes-green);font-size:0.72rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--yes-green);display:inline-block;animation:pulse 1.5s infinite;"></span>LIVE' + (period_label ? ' &nbsp;&middot;&nbsp; ' + period_label : '') + '</span>';
+                                const teamRow = (name, score, leading) =>
+                                    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + (leading ? 'rgba(34,197,94,0.08)' : 'transparent') + ';border-radius:8px;margin-bottom:4px;">' +
+                                    '<span style="font-size:0.95rem;font-weight:' + (leading ? '700' : '400') + ';color:' + (leading ? '#fff' : '#aaa') + ';">' + name + '</span>' +
+                                    '<span style="font-family:monospace;font-size:1.6rem;font-weight:bold;color:' + (leading ? 'var(--yes-green)' : '#888') + ';">' + (score ?? '—') + '</span></div>';
+                                panel.innerHTML =
+                                    '<div style="text-align:center;margin-bottom:10px;">' + badge + '</div>' +
+                                    teamRow(home_team, home_score, homeLead) +
+                                    teamRow(away_team, away_score, awayLead) +
+                                    '<div style="text-align:center;margin-top:8px;color:#444;font-size:0.7rem;">YES = ' + home_team + ' wins &nbsp;&middot;&nbsp; NO = ' + away_team + ' wins</div>';
+                            } catch(e) {
+                                const p = document.getElementById('score-panel');
+                                if (p) p.innerHTML = '<div style="text-align:center;color:#555;font-size:0.85rem;">Score unavailable</div>';
+                            }
+                        })();
+                    }
                 } else {
                     content.innerHTML = `
                         <h2 style="margin-bottom: 20px;">${currentMarket.question}</h2>
