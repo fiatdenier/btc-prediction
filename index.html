@@ -476,6 +476,12 @@
 
         <div id="resolved-section" style="display: none; margin-top: 60px;">
             <h2 class="section-title">✅ Recently Resolved</h2>
+            <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="resolved-tab active" data-cat="all" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: var(--btc-orange); color: #000; font-weight: bold; cursor: pointer; font-size: 0.85rem;">All</button>
+                <button class="resolved-tab" data-cat="bitcoin" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">₿ Bitcoin</button>
+                <button class="resolved-tab" data-cat="stocks" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">📈 Stocks</button>
+                <button class="resolved-tab" data-cat="sports" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">🏆 Sports</button>
+            </div>
             <div id="resolved-markets" class="markets-grid"></div>
         </div>
 
@@ -580,6 +586,8 @@
 
         let marketsData = {}; // Cache market data by id
         let activeTab = 'all'; // currently selected category tab
+        let resolvedData = []; // Cache resolved markets for tab filtering
+        let activeResolvedTab = 'all'; // currently selected resolved tab
 
         function setTab(btn) {
             document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
@@ -588,6 +596,24 @@
             // Re-render with current cached data filtered to new tab
             const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
             displayMarkets(filterByTab(all), 'active-markets');
+        }
+
+        function filterResolvedByTab(markets) {
+            if (activeResolvedTab === 'all') return markets;
+            return markets.filter(m => (m.category || 'bitcoin') === activeResolvedTab);
+        }
+
+        function setResolvedTab(btn) {
+            document.querySelectorAll('.resolved-tab').forEach(t => {
+                t.style.background = 'transparent';
+                t.style.color = '#aaa';
+                t.style.borderColor = '#444';
+            });
+            btn.style.background = 'var(--btc-orange)';
+            btn.style.color = '#000';
+            btn.style.borderColor = 'var(--btc-orange)';
+            activeResolvedTab = btn.dataset.cat;
+            displayMarkets(filterResolvedByTab(resolvedData), 'resolved-markets');
         }
 
         function filterByTab(markets) {
@@ -654,9 +680,11 @@
                 claimSection.style.display = 'block';
 
                 if (resolved.length > 0) {
-                    displayMarkets(resolved, 'resolved-markets');
+                    resolvedData = resolved;
+                    displayMarkets(filterResolvedByTab(resolved), 'resolved-markets');
                     resolvedSection.style.display = 'block';
                 } else {
+                    resolvedData = [];
                     resolvedSection.style.display = 'none';
                 }
 
@@ -848,12 +876,18 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            const start = currentMarket.sweat_start_price || livePrice;
+                            // For DROP: progress = how far price has fallen toward target
+                            // Use sweat_start_price if available; fall back to livePrice * 1.05 as estimate
+                            const start = currentMarket.sweat_start_price || (livePrice * 1.05);
                             const range = start - target;
                             if (range <= 0) return 0;
-                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
+                            // How far has price dropped from start toward target?
+                            const dropped = start - livePrice;
+                            return Math.min(100, Math.max(0, (dropped / range) * 100));
                         }
-                        return Math.min(100, (livePrice / target) * 100);
+                        // For PUMP: progress = livePrice as % of target
+                        const start = currentMarket.sweat_start_price || (target * 0.95);
+                        return Math.min(100, Math.max(0, ((livePrice - start) / (target - start)) * 100));
                     }
 
                     content.innerHTML = `
