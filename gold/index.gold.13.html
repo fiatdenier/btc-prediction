@@ -905,8 +905,7 @@
                     `;
 
                     // Live update loop for sweat modal
-                    if (window._sweatModalInterval) clearInterval(window._sweatModalInterval);
-                    let sweatModalInterval = window._sweatModalInterval = setInterval(() => {
+                    let sweatModalInterval = setInterval(() => {
                         // Update countdown timer (all categories)
                         const timerEl = document.getElementById('sweat-modal-timer');
                         if (timerEl && sweatDeadlineTs) {
@@ -1057,9 +1056,8 @@
                     }
 
                     fetchLiveScore();  // immediate first load
-                    if (window._scoreInterval) clearInterval(window._scoreInterval);
-                    window._scoreInterval = setInterval(() => {
-                        if (!document.getElementById('score-panel')) { clearInterval(window._scoreInterval); window._scoreInterval = null; return; }
+                    const scoreInterval = setInterval(() => {
+                        if (!document.getElementById('score-panel')) { clearInterval(scoreInterval); return; }
                         fetchLiveScore();
                     }, 30000);  // every 30s — backend caches so quota stays safe
                 }
@@ -1332,8 +1330,6 @@
 
         function closeModal() {
             document.getElementById('bet-modal').style.display = 'none';
-            if (window._sweatModalInterval) { clearInterval(window._sweatModalInterval); window._sweatModalInterval = null; }
-            if (window._scoreInterval) { clearInterval(window._scoreInterval); window._scoreInterval = null; }
             if (checkInterval) {
                 clearInterval(checkInterval);
                 checkInterval = null;
