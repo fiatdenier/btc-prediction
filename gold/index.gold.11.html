@@ -764,7 +764,7 @@
                                     Ends: ${formatTime(market.sweat_deadline)}
                                 </div>
                             </div>
-                        ` : ''}
+                        `: ''}
                     </div>
                 `;
             }).join('');
@@ -927,35 +927,21 @@
                             const { status, home_team, away_team, home_score, away_score, commence_time } = d;
 
                             if (status === 'pre_game' || (home_score === null && away_score === null)) {
-                                // Check if game deadline already passed — show "ended" not "starting soon"
-                                const sweatDeadlineMs = currentMarket.sweat_deadline
-                                    ? new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()
+                                // Countdown to tip-off / kickoff
+                                const startTs = commence_time
+                                    ? Math.floor(new Date(commence_time.replace('Z','')+'Z').getTime()/1000)
                                     : 0;
-                                const nowMs = Date.now();
-                                if (sweatDeadlineMs && nowMs > sweatDeadlineMs) {
-                                    // Game is over, score just not available from provider
-                                    panel.innerHTML = `
-                                        <div style="text-align:center;">
-                                            <div style="color:#888;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Game Ended</div>
-                                            <div style="color:#555;font-size:0.85rem;">Score data unavailable — awaiting admin resolution.</div>
-                                        </div>`;
-                                } else {
-                                    // Game hasn't started yet — show countdown
-                                    const startTs = commence_time
-                                        ? Math.floor(new Date(commence_time.replace('Z','')+'Z').getTime()/1000)
-                                        : 0;
-                                    const nowSec = Math.floor(nowMs/1000);
-                                    const left   = startTs ? startTs - nowSec : 0;
-                                    const cd     = left > 0 ? fmtCountdown(left) : 'Starting soon';
-                                    const sportLabel = currentMarket.question.toLowerCase().includes('nfl')
-                                        ? '🏈 Kickoff in' : '🏀 Tip-off in';
-                                    panel.innerHTML = `
-                                        <div style="text-align:center;">
-                                            <div style="color:#888;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">${sportLabel}</div>
-                                            <div style="font-family:monospace;font-size:2rem;font-weight:bold;color:#f59e0b;">${cd}</div>
-                                            <div style="color:#555;font-size:0.75rem;margin-top:8px;">${home_team || '—'} vs ${away_team || '—'}</div>
-                                        </div>`;
-                                }
+                                const now  = Math.floor(Date.now()/1000);
+                                const left = startTs ? startTs - now : 0;
+                                const cd   = left > 0 ? fmtCountdown(left) : 'Starting soon';
+                                const sportLabel = currentMarket.question.toLowerCase().includes('nfl')
+                                    ? '🏈 Kickoff in' : '🏀 Tip-off in';
+                                panel.innerHTML = `
+                                    <div style="text-align:center;">
+                                        <div style="color:#888;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">${sportLabel}</div>
+                                        <div style="font-family:monospace;font-size:2rem;font-weight:bold;color:#f59e0b;">${cd}</div>
+                                        <div style="color:#555;font-size:0.75rem;margin-top:8px;">${home_team || '—'} vs ${away_team || '—'}</div>
+                                    </div>`;
                             } else {
                                 // Live or final scoreboard
                                 const homeLead   = (home_score ?? 0) > (away_score ?? 0);
