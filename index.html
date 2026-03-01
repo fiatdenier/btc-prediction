@@ -629,12 +629,13 @@
                 const active = data.active || [];
                 const resolved = data.resolved || [];
 
-                // Check if we need a full re-render (new market ids appeared/disappeared)
-                const activeIds = active.map(m => m.id).sort().join(',');
-                const cachedIds = Object.keys(marketsData).filter(id => marketsData[id]._container === 'active-markets').sort().join(',');
+                // Re-render if market ids OR any phase/status changed
+                const stateKey = m => `${m.id}:${m.phase}:${m.status}:${m.outcome||''}`;
+                const activeKey  = active.map(stateKey).sort().join(',');
+                const cachedKey  = Object.values(marketsData).filter(m => m._container === 'active-markets').map(stateKey).sort().join(',');
 
-                if (activeIds !== cachedIds) {
-                    // Full render needed — apply tab filter
+                if (activeKey !== cachedKey) {
+                    // Full render needed — phase/status changed or markets added/removed
                     displayMarkets(filterByTab(active), 'active-markets');
                 } else {
                     // Just update the numbers in-place, don't touch timer DOM
@@ -717,7 +718,13 @@
                             Total Pool: <strong id="pool-${market.id}">${market.total_pool.toLocaleString()} sats</strong>
                         </div>
 
-                        ${market.phase === 'betting' ? `
+                        ${(market.status === 'resolved' || market.phase === 'resolved') ? `
+                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
+                                    ✅ ${market.outcome ? market.outcome + ' Won' : 'Resolved'}
+                                </div>
+                            </div>
+                        ` : market.phase === 'betting' ? `
                             <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(34, 197, 94, 0.2); margin-top: 10px;">
                                 <div style="color: #22c55e; font-weight: bold; font-size: 1.1rem; margin-bottom: 8px;">
                                     ⏰ BETTING OPEN
@@ -755,12 +762,6 @@
                                 <div style="color: #888; font-size: 0.78rem;">
                                     ${extremeValue ? `${extremeLabel}: $${Number(extremeValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}<br>` : ''}
                                     Ends: ${formatTime(market.sweat_deadline)}
-                                </div>
-                            </div>
-                        ` : `
-                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
-                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
-                                    ✅ ${market.outcome} Won
                                 </div>
                             </div>
                         `}
