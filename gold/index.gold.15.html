@@ -766,20 +766,19 @@
                                     ⏰ BETTING OPEN
                                 </div>
                                 <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 8px;">${conditionText(market)}</div>
-                                <div style="display: grid; grid-template-columns: ${(market.category||'bitcoin')==='bitcoin' ? '1fr 1fr' : '1fr'}; gap: 10px; margin-bottom: 8px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
                                     <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
                                         <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Betting closes in</div>
                                         <div id="bet-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #22c55e;">--:--:--</div>
                                     </div>
-                                    ${(market.category||'bitcoin')==='bitcoin' ? `
                                     <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
                                         <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                         <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
-                                    </div>` : ''}
+                                    </div>
                                 </div>
                                 <div style="color: #666; font-size: 0.78rem;">
                                     Betting closes: ${formatTime(market.betting_deadline)}<br>
-                                    ${(market.category||'bitcoin')==='bitcoin' && market.sweat_deadline ? `Game ends: ${formatTime(market.sweat_deadline)}` : ''}
+                                    ${market.sweat_deadline ? `Game ends: ${formatTime(market.sweat_deadline)}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
@@ -791,7 +790,10 @@
                                 ${(market.category || 'bitcoin') === 'bitcoin' ? `
                                 <div style="color: #fff; font-size: 1rem; margin-bottom: 8px;">
                                     Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
-                                </div>
+                                </div>` : `
+                                <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
+                                    Loading score...
+                                </div>`}
                                 <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
                                     <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                     <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
@@ -799,10 +801,7 @@
                                 <div style="color: #888; font-size: 0.78rem;">
                                     ${extremeValue ? `${extremeLabel}: $${Number(extremeValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}<br>` : ''}
                                     Ends: ${formatTime(market.sweat_deadline)}
-                                </div>` : `
-                                <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
-                                    Loading score...
-                                </div>`}
+                                </div>
                             </div>
                         ` : ''}
                     </div>
@@ -849,11 +848,6 @@
                     '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + (awayLead ? '#fff' : '#aaa') + ';font-weight:' + (awayLead ? 'bold' : 'normal') + ';">' +
                         '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (awayLead ? 'var(--yes-green)' : '#888') + ';">' + (away_score ?? '—') + '</span>' +
                     '</div>';
-                // Game finished — trigger backend resolution
-                if (status === 'completed') {
-                    fetch(API_BASE + '/market/' + marketId + '/trigger-resolve', { method: 'POST' })
-                        .catch(() => {});
-                }
             } catch(e) {
                 const el2 = document.getElementById('card-score-' + marketId);
                 if (el2) el2.textContent = 'Score unavailable';
