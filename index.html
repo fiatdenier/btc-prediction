@@ -685,9 +685,10 @@
 
                 if (resolved.length > 0) {
                     resolvedData = resolved;
+                    // Store resolved markets in marketsData so renderResolvedScore can read final scores
+                    resolved.forEach(m => { marketsData[m.id] = {...m, _container: 'resolved-markets'}; });
                     displayMarkets(filterResolvedByTab(resolved), 'resolved-markets');
                     resolvedSection.style.display = 'block';
-                    // Populate resolved scores from cache (no new API call needed)
                     resolved.forEach(m => {
                         if ((m.category||'bitcoin') === 'sports') renderResolvedScore(m.id);
                     });
@@ -710,9 +711,11 @@
             if (yesEl) yesEl.textContent = market.yes_percentage + '%';
             if (noEl) noEl.textContent = market.no_percentage + '%';
             if (poolEl) poolEl.textContent = market.total_pool.toLocaleString() + ' sats';
-            // Refresh card score for sports sweat markets (score div already exists, just update)
-            if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                fetchCardScore(market.id);
+            // Refresh card score/price for sweat markets
+            if (market.phase === 'sweat') {
+                const cat = market.category || 'bitcoin';
+                if (cat === 'sports') fetchCardScore(market.id);
+                else if (cat === 'stocks') fetchCardPrice(market.id);
             }
         }
 
@@ -811,9 +814,13 @@
                                 <div style="color: #888; font-size: 0.78rem;">
                                     ${extremeValue ? `${extremeLabel}: $${Number(extremeValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}<br>` : ''}
                                     Ends: ${formatTime(market.sweat_deadline)}
-                                </div>` : `
+                                </div>` : (market.category || 'bitcoin') === 'sports' ? `
                                 <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
                                     Loading score...
+                                </div>` : `
+                                <div id="card-price-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
+                                    <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Current Price</div>
+                                    <div style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #fff;">Loading...</div>
                                 </div>`}
                             </div>
                         ` : ''}
@@ -828,10 +835,12 @@
                 }
             });
 
-            // Fetch live scores for sports sweat cards
+            // Fetch live scores/prices for sweat cards
             markets.forEach(market => {
-                if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                    fetchCardScore(market.id);
+                if (market.phase === 'sweat') {
+                    const cat = market.category || 'bitcoin';
+                    if (cat === 'sports') fetchCardScore(market.id);
+                    else if (cat === 'stocks') fetchCardPrice(market.id);
                 }
             });
         }
@@ -840,19 +849,16 @@
         function renderResolvedScore(marketId) {
             const el = document.getElementById('resolved-score-' + marketId);
             if (!el) return;
-            const s = scoreCache[marketId];
-            if (!s) {
-                // Not in cache (page freshly loaded) — fetch from ESPN
-                fetch(API_BASE + '/market/' + marketId + '/live-score')
-                    .then(r => r.json())
-                    .then(d => {
-                        if (!d.error && d.home_score !== null) {
-                            scoreCache[marketId] = { home_team: d.home_team, away_team: d.away_team, home_score: d.home_score, away_score: d.away_score };
-                            renderResolvedScore(marketId);
-                        } else { el.style.display = 'none'; }
-                    }).catch(() => { el.style.display = 'none'; });
-                return;
+            // Priority: 1) marketsData (final_* fields saved at resolution, survives restarts)
+            //           2) scoreCache (live memory, populated during sweat phase)
+            //           3) hide gracefully
+            const md = marketsData[marketId];
+            let s = scoreCache[marketId];
+            if (!s && md && md.final_home_score != null) {
+                s = { home_team: md.final_home_team, away_team: md.final_away_team,
+                      home_score: md.final_home_score, away_score: md.final_away_score };
             }
+            if (!s) { el.style.display = 'none'; return; }
             const { home_team, away_team, home_score, away_score } = s;
             const homeLead = (home_score ?? 0) >= (away_score ?? 0);
             el.innerHTML =
@@ -862,6 +868,33 @@
                 '<div style="display:flex;justify-content:space-between;padding:2px 8px;color:' + (!homeLead?'#fff':'#aaa') + ';font-weight:' + (!homeLead?'bold':'normal') + ';">' +
                     '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (!homeLead?'var(--yes-green)':'#888') + ';">' + away_score + '</span>' +
                 '</div>';
+        }
+
+        async function fetchCardPrice(marketId) {
+            const el = document.getElementById('card-price-' + marketId);
+            if (!el) return;
+            const market = marketsData[marketId];
+            if (!market || !market.ticker) return;
+            try {
+                const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
+                const d = await r.json();
+                // Stocks live-score endpoint returns current_price
+                if (d.current_price != null) {
+                    const target = market.target_price || market.target_btc_price;
+                    const direction = market.direction || 'up';
+                    const hit = direction === 'up' ? d.current_price >= target : d.current_price <= target;
+                    const color = hit ? 'var(--yes-green)' : '#fff';
+                    el.innerHTML =
+                        '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div>' +
+                        '<div style="font-family:monospace;font-size:1rem;font-weight:bold;color:' + color + ';">$' + Number(d.current_price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
+                        '<div style="color:#888;font-size:0.7rem;margin-top:2px;">Target: $' + Number(target).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>';
+                } else {
+                    el.innerHTML = '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div><div style="color:#555;font-size:0.8rem;">Market closed</div>';
+                }
+            } catch(e) {
+                const el2 = document.getElementById('card-price-' + marketId);
+                if (el2) el2.innerHTML = '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div><div style="color:#555;font-size:0.8rem;">Unavailable</div>';
+            }
         }
 
         async function fetchCardScore(marketId) {
