@@ -614,9 +614,6 @@
             btn.style.borderColor = 'var(--btc-orange)';
             activeResolvedTab = btn.dataset.cat;
             displayMarkets(filterResolvedByTab(resolvedData), 'resolved-markets');
-            filterResolvedByTab(resolvedData).forEach(m => {
-                if ((m.category||'bitcoin') === 'sports') fetchResolvedScore(m.id);
-            });
         }
 
         function filterByTab(markets) {
@@ -740,10 +737,7 @@
                             <span class="status-badge status-${market.status}">${market.status}</span>
                             ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category) : directionLabel(direction)}
                         </div>
-                        <div class="market-question">
-                            ${market.question}
-                            ${(market.category||'bitcoin')==='sports' ? '<span style="color:#555;font-size:0.65rem;font-weight:normal;margin-left:6px;">#' + market.id.slice(-6) + '</span>' : ''}
-                        </div>
+                        <div class="market-question">${market.question}</div>
                         
                         <div class="market-stats">
                             <div class="stat">
@@ -761,11 +755,10 @@
                         </div>
 
                         ${(market.status === 'resolved' || market.phase === 'resolved') ? `
-                            <div style="margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px; text-align: center;">
-                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem; margin-bottom: ${(market.category||'bitcoin')==='sports' ? '8px' : '0'};">
+                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
                                     ✅ ${market.outcome ? market.outcome + ' Won' : 'Resolved'}
                                 </div>
-                                ${(market.category||'bitcoin')==='sports' ? '<div id="resolved-score-' + market.id + '" style="font-size:0.82rem;color:#888;">Loading score...</div>' : ''}
                             </div>
                         ` : market.phase === 'betting' ? `
                             <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(34, 197, 94, 0.2); margin-top: 10px;">
@@ -831,29 +824,6 @@
             });
         }
 
-        // Fetch and render final score into a resolved card
-        async function fetchResolvedScore(marketId) {
-            const el = document.getElementById('resolved-score-' + marketId);
-            if (!el) return;
-            try {
-                const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
-                const d = await r.json();
-                if (d.error || d.home_score === null) { el.style.display = 'none'; return; }
-                const { home_team, away_team, home_score, away_score } = d;
-                const homeLead = (home_score ?? 0) >= (away_score ?? 0);
-                el.innerHTML =
-                    '<div style="display:flex;justify-content:space-between;padding:2px 8px;color:' + (homeLead?'#fff':'#aaa') + ';font-weight:' + (homeLead?'bold':'normal') + ';">' +
-                        '<span>' + home_team + '</span><span style="font-family:monospace;color:' + (homeLead?'var(--yes-green)':'#888') + ';">' + home_score + '</span>' +
-                    '</div>' +
-                    '<div style="display:flex;justify-content:space-between;padding:2px 8px;color:' + (!homeLead?'#fff':'#aaa') + ';font-weight:' + (!homeLead?'bold':'normal') + ';">' +
-                        '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (!homeLead?'var(--yes-green)':'#888') + ';">' + away_score + '</span>' +
-                    '</div>';
-            } catch(e) {
-                const el2 = document.getElementById('resolved-score-' + marketId);
-                if (el2) el2.style.display = 'none';
-            }
-        }
-
         // Fetch and render score into a market card's score div
         async function fetchCardScore(marketId) {
             const el = document.getElementById('card-score-' + marketId);
@@ -912,15 +882,18 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // DROP: how far has price fallen from start toward target?
+                            // For DROP: progress = how far price has fallen toward target
+                            // Use sweat_start_price if available; fall back to livePrice * 1.05 as estimate
                             const start = currentMarket.sweat_start_price || (livePrice * 1.05);
                             const range = start - target;
                             if (range <= 0) return 0;
-                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
+                            // How far has price dropped from start toward target?
+                            const dropped = start - livePrice;
+                            return Math.min(100, Math.max(0, (dropped / range) * 100));
                         }
-                        // PUMP: what % of target has price reached?
-                        // e.g. price $66,920 / target $75,500 = 88.6%
-                        return Math.min(100, Math.max(0, (livePrice / target) * 100));
+                        // For PUMP: progress = livePrice as % of target
+                        const start = currentMarket.sweat_start_price || (target * 0.95);
+                        return Math.min(100, Math.max(0, ((livePrice - start) / (target - start)) * 100));
                     }
 
                     content.innerHTML = `
