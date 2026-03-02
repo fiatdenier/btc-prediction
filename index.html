@@ -664,20 +664,24 @@
                 const activeKey  = active.map(stateKey).sort().join(',');
                 const cachedKey  = Object.values(marketsData).filter(m => m._container === 'active-markets').map(stateKey).sort().join(',');
 
+                // Update cache first so fetchCardScore/fetchCardPrice can read ticker etc.
+                active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
+
                 if (activeKey !== cachedKey) {
                     // Full render needed — phase/status changed or markets added/removed
                     displayMarkets(filterByTab(active), 'active-markets');
-                    // Re-fetch card scores immediately after re-render so they don't flash "Loading..."
+                    // Re-fetch card data immediately after re-render
                     active.forEach(m => {
-                        if (m.phase === 'sweat' && (m.category || 'bitcoin') === 'sports') fetchCardScore(m.id);
+                        if (m.phase === 'sweat') {
+                            const cat = m.category || 'bitcoin';
+                            if (cat === 'sports') fetchCardScore(m.id);
+                            else if (cat === 'stocks') fetchCardPrice(m.id, m);
+                        }
                     });
                 } else {
                     // Just update the numbers in-place, don't touch timer DOM
                     active.forEach(m => updateMarketCard(m));
                 }
-
-                // Update cache (always store full list, tab filter applied at render time)
-                active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
 
                 const resolvedSection = document.getElementById('resolved-section');
                 const claimSection = document.getElementById('claim-section');
@@ -715,7 +719,7 @@
             if (market.phase === 'sweat') {
                 const cat = market.category || 'bitcoin';
                 if (cat === 'sports') fetchCardScore(market.id);
-                else if (cat === 'stocks') fetchCardPrice(market.id);
+                else if (cat === 'stocks') fetchCardPrice(market.id, market);
             }
         }
 
@@ -840,7 +844,7 @@
                 if (market.phase === 'sweat') {
                     const cat = market.category || 'bitcoin';
                     if (cat === 'sports') fetchCardScore(market.id);
-                    else if (cat === 'stocks') fetchCardPrice(market.id);
+                    else if (cat === 'stocks') fetchCardPrice(market.id, market);
                 }
             });
         }
@@ -870,18 +874,19 @@
                 '</div>';
         }
 
-        async function fetchCardPrice(marketId) {
+        async function fetchCardPrice(marketId, market) {
             const el = document.getElementById('card-price-' + marketId);
             if (!el) return;
-            const market = marketsData[marketId];
-            if (!market || !market.ticker) return;
+            const m = market || marketsData[marketId];
+            if (!m || !m.ticker) return;
+            const market_obj = m;
             try {
                 const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
                 const d = await r.json();
                 // Stocks live-score endpoint returns current_price
                 if (d.current_price != null) {
-                    const target = market.target_price || market.target_btc_price;
-                    const direction = market.direction || 'up';
+                    const target = market_obj.target_price || market_obj.target_btc_price;
+                    const direction = market_obj.direction || 'up';
                     const hit = direction === 'up' ? d.current_price >= target : d.current_price <= target;
                     const color = hit ? 'var(--yes-green)' : '#fff';
                     el.innerHTML =
