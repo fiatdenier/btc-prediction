@@ -715,11 +715,11 @@
             if (yesEl) yesEl.textContent = market.yes_percentage + '%';
             if (noEl) noEl.textContent = market.no_percentage + '%';
             if (poolEl) poolEl.textContent = market.total_pool.toLocaleString() + ' sats';
-            // Refresh card score/price for sweat markets
+            // Refresh sports card score on poll; stocks has its own 30s interval
             if (market.phase === 'sweat') {
                 const cat = market.category || 'bitcoin';
                 if (cat === 'sports') fetchCardScore(market.id);
-                else if (cat === 'stocks') fetchCardPrice(market.id, market);
+                // stocks: 30s interval set when card was first rendered
             }
         }
 
@@ -879,6 +879,8 @@
             if (!el) return;
             const m = market || marketsData[marketId];
             if (!m || !m.ticker) return;
+            // Don't poll resolved markets
+            if (m.status === 'resolved' || m.phase === 'resolved') { el.style.display = 'none'; return; }
             const market_obj = m;
             try {
                 const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
