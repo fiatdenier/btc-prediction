@@ -840,8 +840,6 @@
             });
 
             // Fetch live scores/prices for sweat cards
-            // Pre-populate marketsData so fetchCardPrice can always find ticker
-            markets.forEach(market => { if (!marketsData[market.id]) marketsData[market.id] = market; });
             markets.forEach(market => {
                 if (market.phase === 'sweat') {
                     const cat = market.category || 'bitcoin';
@@ -857,26 +855,14 @@
             if (!el) return;
             // Priority: 1) marketsData (final_* fields saved at resolution, survives restarts)
             //           2) scoreCache (live memory, populated during sweat phase)
-            //           3) Try ESPN live-score as last resort (recent games only)
+            //           3) hide gracefully
             const md = marketsData[marketId];
             let s = scoreCache[marketId];
             if (!s && md && md.final_home_score != null) {
                 s = { home_team: md.final_home_team, away_team: md.final_away_team,
                       home_score: md.final_home_score, away_score: md.final_away_score };
             }
-            if (!s) {
-                // Last resort: try ESPN (works for ~1 day after game ends)
-                fetch(API_BASE + '/market/' + marketId + '/live-score')
-                    .then(r => r.json())
-                    .then(d => {
-                        if (!d.error && d.home_score != null) {
-                            scoreCache[marketId] = { home_team: d.home_team, away_team: d.away_team,
-                                                     home_score: d.home_score, away_score: d.away_score };
-                            renderResolvedScore(marketId);
-                        } else { el.style.display = 'none'; }
-                    }).catch(() => { el.style.display = 'none'; });
-                return;
-            }
+            if (!s) { el.style.display = 'none'; return; }
             const { home_team, away_team, home_score, away_score } = s;
             const homeLead = (home_score ?? 0) >= (away_score ?? 0);
             el.innerHTML =
@@ -963,7 +949,7 @@
                 const content = document.getElementById('modal-content');
 
                 if (currentMarket.phase === 'sweat') {
-                    const target = currentMarket.target_price || currentMarket.target_btc_price;
+                    const target = currentMarket.target_btc_price;
                     const direction = currentMarket.direction || 'up';
                     const isDown = direction === 'down';
                     const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
@@ -995,7 +981,7 @@
                             ${conditionText(currentMarket)}
                         </div>
 
-                        ${                        ((currentMarket.category || 'bitcoin') === 'bitcoin' || (currentMarket.category) === 'stocks') ? `
+                        ${                        (currentMarket.category || 'bitcoin') === 'bitcoin' ? `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                             <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
                                 <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Target Price</div>
@@ -1003,11 +989,9 @@
                                 <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">${isDown ? '▼ needs to DROP below' : '▲ needs to PUMP above'}</div>
                             </div>
                             <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
-                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                                    ${(currentMarket.category||'bitcoin')==='stocks' ? (currentMarket.ticker||'Stock') + ' Price' : 'Current BTC Price'}
-                                </div>
+                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Current BTC Price</div>
                                 <div id="sweat-modal-price" data-prev="${window.liveBtcPrice||''}" style="font-size: 1.4rem; font-weight: bold; color: white; transition: color 0.4s;">
-                                    ${(currentMarket.category||'bitcoin')==='stocks' ? 'Loading...' : (window.liveBtcPrice ? '$' + window.liveBtcPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...')}
+                                    ${window.liveBtcPrice ? '$' + window.liveBtcPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...'}
                                 </div>
                             </div>
                         </div>
@@ -1029,9 +1013,7 @@
                             <div style="text-align:center; color:#888; font-size:0.85rem;">Loading score...</div>
                         </div>`}
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
-                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : 'Game ends in'}
-                            </div>
+                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Game ends in</div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
 
@@ -1051,11 +1033,9 @@
                             timerEl.style.color = left <= 60 ? 'var(--no-red)' : '#f59e0b';
                         }
 
-                        // Price tracking only for bitcoin/stocks markets
-                        const _cat = currentMarket.category || 'bitcoin';
-                        if (_cat === 'sports') return;
-                        // stocks: price is updated by fetchLiveStockPrice interval below
-                        if (_cat === 'stocks') return;
+                        // Price tracking only for bitcoin markets
+                        if ((currentMarket.category || 'bitcoin') !== 'bitcoin') return;
+                        // (sports: score polling handled by fetchLiveScore interval below)
 
                         // Stop if modal was closed
                         if (!document.getElementById('sweat-modal-price')) {
@@ -1097,49 +1077,6 @@
 
                         // (countdown updated at top of interval for all categories)
                     }, 1000);
-
-                // ── Live price polling for stocks markets ─────────────────────────
-                if ((currentMarket.category || 'bitcoin') === 'stocks') {
-                    async function fetchLiveStockPrice() {
-                        const priceEl = document.getElementById('sweat-modal-price');
-                        if (!priceEl) return;
-                        try {
-                            const r = await fetch(API_BASE + '/market/' + currentMarket.id + '/live-score');
-                            const d = await r.json();
-                            if (d.current_price != null) {
-                                const livePrice = d.current_price;
-                                const prev = parseFloat(priceEl.dataset.prev) || livePrice;
-                                const formatted = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
-                                priceEl.style.color = livePrice > prev ? 'var(--yes-green)' : livePrice < prev ? 'var(--no-red)' : 'white';
-                                setTimeout(() => { if (priceEl) priceEl.style.color = 'white'; }, 500);
-                                priceEl.textContent = formatted;
-                                priceEl.dataset.prev = livePrice;
-
-                                // Update extreme tracker
-                                const extremeEl = document.getElementById('sweat-modal-extreme');
-                                if (extremeEl) {
-                                    const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
-                                    const newExtreme = isDown ? (livePrice < cur) : (livePrice > cur);
-                                    if (newExtreme || !extremeEl.dataset.val) {
-                                        extremeEl.dataset.val = livePrice;
-                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
-                                    }
-                                }
-                                // Update progress bar
-                                const pct = calcPct(livePrice);
-                                const barEl = document.getElementById('sweat-modal-bar');
-                                const pctEl = document.getElementById('sweat-modal-pct');
-                                if (barEl) barEl.style.width = pct.toFixed(1) + '%';
-                                if (pctEl) pctEl.textContent = pct.toFixed(1) + '% of target';
-                            }
-                        } catch(e) {}
-                    }
-                    fetchLiveStockPrice();
-                    const stockPriceInterval = setInterval(() => {
-                        if (!document.getElementById('sweat-modal-price')) { clearInterval(stockPriceInterval); return; }
-                        fetchLiveStockPrice();
-                    }, 30000);
-                }
 
                 // ── Live score polling for sports markets ──────────────────────────
                 if ((currentMarket.category || 'bitcoin') === 'sports') {
