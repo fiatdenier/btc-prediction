@@ -963,17 +963,21 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // For DROP: progress = how far price has fallen toward target
-                            // Use sweat_start_price if available; fall back to livePrice * 1.05 as estimate
-                            const start = currentMarket.sweat_start_price || (livePrice * 1.05);
+                            // DROP: use highest seen as start → how far has price fallen toward target
+                            const start = currentMarket.sweat_start_price
+                                       || currentMarket.highest_price_during_sweat
+                                       || livePrice;
                             const range = start - target;
                             if (range <= 0) return 0;
-                            // How far has price dropped from start toward target?
-                            const dropped = start - livePrice;
-                            return Math.min(100, Math.max(0, (dropped / range) * 100));
+                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
                         }
-                        // For PUMP: what % of target has price reached?
-                        return Math.min(100, Math.max(0, (livePrice / target) * 100));
+                        // PUMP: use lowest seen as start → how far has price risen toward target
+                        const start = currentMarket.sweat_start_price
+                                   || currentMarket.lowest_price_during_sweat
+                                   || livePrice;
+                        const range = target - start;
+                        if (range <= 0) return livePrice >= target ? 100 : 0;
+                        return Math.min(100, Math.max(0, ((livePrice - start) / range) * 100));
                     }
 
                     content.innerHTML = `
