@@ -954,6 +954,13 @@
                     const target = currentMarket.target_price || currentMarket.target_btc_price;
                     const direction = currentMarket.direction || 'up';
                     const isDown = direction === 'down';
+                    // For stocks, sweat_start_price was incorrectly set to BTC price — ignore it
+                    // highest/lowest will be seeded by fetchLiveStockPrice on first call
+                    if ((currentMarket.category||'bitcoin') === 'stocks') {
+                        currentMarket.sweat_start_price = null;
+                        currentMarket.highest_price_during_sweat = null;
+                        currentMarket.lowest_price_during_sweat = null;
+                    }
                     const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
                     const extremeVal = isDown ? (currentMarket.lowest_price_during_sweat || null) : (currentMarket.highest_price_during_sweat || null);
                     const sweatDeadlineTs = currentMarket.sweat_deadline
@@ -1105,11 +1112,26 @@
                                 setTimeout(() => { if (priceEl) priceEl.style.color = 'white'; }, 500);
                                 priceEl.textContent = formatted;
                                 priceEl.dataset.prev = livePrice;
+                                // Use backend-tracked extremes (persisted in market JSON)
+                                if (d.highest_price_during_sweat != null)
+                                    currentMarket.highest_price_during_sweat = d.highest_price_during_sweat;
+                                if (d.lowest_price_during_sweat != null)
+                                    currentMarket.lowest_price_during_sweat = d.lowest_price_during_sweat;
+                                // Fallback: seed from live price if backend hasn't tracked yet
+                                if (currentMarket.highest_price_during_sweat == null)
+                                    currentMarket.highest_price_during_sweat = livePrice;
+                                if (currentMarket.lowest_price_during_sweat == null)
+                                    currentMarket.lowest_price_during_sweat = livePrice;
                                 const extremeEl = document.getElementById('sweat-modal-extreme');
                                 if (extremeEl) {
                                     const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
                                     if (isDown ? livePrice < cur : livePrice > cur) {
                                         extremeEl.dataset.val = livePrice;
+                                        currentMarket.lowest_price_during_sweat = livePrice;
+                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                    } else if (!isDown && livePrice > cur) {
+                                        extremeEl.dataset.val = livePrice;
+                                        currentMarket.highest_price_during_sweat = livePrice;
                                         extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
                                     }
                                 }
