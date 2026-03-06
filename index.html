@@ -1052,8 +1052,8 @@
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
 
-                        <div style="text-align: center; color: #555; font-size: 0.8rem;">
-                            Ends: ${formatTime(currentMarket.sweat_deadline)}
+                        <div style="text-align: center; color: #555; font-size: 0.8rem;" id="sweat-modal-ends-line">
+                            ${(currentMarket.category||'bitcoin') === 'sports' ? '' : 'Ends: ' + formatTime(currentMarket.sweat_deadline)}
                         </div>
                     `;
 
