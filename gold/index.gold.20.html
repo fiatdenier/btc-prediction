@@ -954,17 +954,12 @@
                     const target = currentMarket.target_price || currentMarket.target_btc_price;
                     const direction = currentMarket.direction || 'up';
                     const isDown = direction === 'down';
-                    // For stocks: sweat_start_price is Monday's open price (set at creation)
-                    // Only clear if it looks like a bad BTC value (> 10000 for a stock)
+                    // For stocks, sweat_start_price was incorrectly set to BTC price — ignore it
+                    // highest/lowest will be seeded by fetchLiveStockPrice on first call
                     if ((currentMarket.category||'bitcoin') === 'stocks') {
-                        const sp = currentMarket.sweat_start_price;
-                        const tgt = currentMarket.target_price;
-                        // If start price is wildly out of range vs target, it's the old BTC bug
-                        if (sp && tgt && (sp / tgt > 10 || sp / tgt < 0.1)) {
-                            currentMarket.sweat_start_price = null;
-                            currentMarket.highest_price_during_sweat = null;
-                            currentMarket.lowest_price_during_sweat = null;
-                        }
+                        currentMarket.sweat_start_price = null;
+                        currentMarket.highest_price_during_sweat = null;
+                        currentMarket.lowest_price_during_sweat = null;
                     }
                     const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
                     const extremeVal = isDown ? (currentMarket.lowest_price_during_sweat || null) : (currentMarket.highest_price_during_sweat || null);
@@ -1244,23 +1239,6 @@
                                     <div style="text-align:center;margin-top:10px;color:#444;font-size:0.7rem;">
                                         YES = ${home_team} wins &nbsp;·&nbsp; NO = ${away_team} wins
                                     </div>`;
-
-                                // Replace countdown timer with ESPN game clock when live
-                                const timerBox = document.getElementById('sweat-modal-timer');
-                                const timerLabel = timerBox ? timerBox.previousElementSibling : null;
-                                const timerEnds = timerBox ? timerBox.parentElement.nextElementSibling : null;
-                                if (timerBox && status === 'in_progress' && period_label) {
-                                    timerLabel.textContent = 'Game clock';
-                                    timerBox.textContent = period_label;
-                                    timerBox.style.fontSize = '1.3rem';
-                                    if (timerEnds) timerEnds.style.display = 'none';
-                                } else if (timerBox && status === 'completed') {
-                                    timerLabel.textContent = 'Game status';
-                                    timerBox.textContent = 'FINAL';
-                                    timerBox.style.color = 'var(--yes-green)';
-                                    timerBox.style.fontSize = '1.3rem';
-                                    if (timerEnds) timerEnds.style.display = 'none';
-                                }
                             }
                         } catch(e) {
                             const p = document.getElementById('score-panel');
