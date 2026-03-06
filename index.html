@@ -1033,8 +1033,8 @@
                             <div style="text-align:center; color:#888; font-size:0.85rem;">Loading score...</div>
                         </div>`}
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
-                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : 'Game ends in'}
+                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;" id="sweat-modal-timer-label">
+                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? '🏀 Tip-off in' : 'Game ends in')}
                             </div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
@@ -1046,10 +1046,27 @@
 
                     // Live update loop for sweat modal
                     if (window._sweatModalInterval) clearInterval(window._sweatModalInterval);
+                    // For sports: compute tip-off time (betting_deadline + 1hr) to use as timer
+                    let sportsTipoffTs = 0;
+                    if ((currentMarket.category||'bitcoin') === 'sports') {
+                        try {
+                            const bdl = currentMarket.betting_deadline || '';
+                            sportsTipoffTs = Math.floor(new Date(bdl.replace('Z','')+'Z').getTime()/1000) + 3600;
+                        } catch(e) {}
+                    }
+
                     let sweatModalInterval = window._sweatModalInterval = setInterval(() => {
                         // Update countdown timer — skip if sports game clock has taken over
                         const timerEl = document.getElementById('sweat-modal-timer');
                         if (timerEl && timerEl.dataset.sportsOverride === 'true') return;
+                        const nowSec = Math.floor(Date.now() / 1000);
+                        // Sports pre-game: count down to tip-off, not 90-day deadline
+                        if ((currentMarket.category||'bitcoin') === 'sports' && sportsTipoffTs && nowSec < sportsTipoffTs) {
+                            const left = sportsTipoffTs - nowSec;
+                            timerEl.textContent = fmtCountdown(left);
+                            timerEl.style.color = '#f59e0b';
+                            return;
+                        }
                         if (timerEl && sweatDeadlineTs) {
                             const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
                             timerEl.textContent = fmtCountdown(Math.max(0, left));
@@ -1267,8 +1284,8 @@
                                 } else if (timerBox && status === 'pre_game') {
                                     // Show countdown to tip-off in the timer box, not 90-day deadline
                                     timerBox.dataset.sportsOverride = 'true';
-                                    const startTs = commence_time
-                                        ? Math.floor(new Date(commence_time.replace('Z','')+'Z').getTime()/1000) : 0;
+                                    const startTs = d.commence_time
+                                        ? Math.floor(new Date(d.commence_time.replace('Z','')+'Z').getTime()/1000) : 0;
                                     const nowSec2 = Math.floor(Date.now()/1000);
                                     const leftToTipoff = startTs ? Math.max(0, startTs - nowSec2) : 0;
                                     const sportLabel2 = (currentMarket.question||'').toLowerCase().includes('nfl') ? '🏈 Kickoff in' : '🏀 Tip-off in';
