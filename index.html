@@ -1047,8 +1047,9 @@
                     // Live update loop for sweat modal
                     if (window._sweatModalInterval) clearInterval(window._sweatModalInterval);
                     let sweatModalInterval = window._sweatModalInterval = setInterval(() => {
-                        // Update countdown timer (all categories)
+                        // Update countdown timer — skip if sports game clock has taken over
                         const timerEl = document.getElementById('sweat-modal-timer');
+                        if (timerEl && timerEl.dataset.sportsOverride === 'true') return;
                         if (timerEl && sweatDeadlineTs) {
                             const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
                             timerEl.textContent = fmtCountdown(Math.max(0, left));
@@ -1250,16 +1251,21 @@
                                 const timerLabel = timerBox ? timerBox.previousElementSibling : null;
                                 const timerEnds = timerBox ? timerBox.parentElement.nextElementSibling : null;
                                 if (timerBox && status === 'in_progress' && period_label) {
+                                    timerBox.dataset.sportsOverride = 'true';
                                     timerLabel.textContent = 'Game clock';
                                     timerBox.textContent = period_label;
                                     timerBox.style.fontSize = '1.3rem';
+                                    timerBox.style.color = '#f59e0b';
                                     if (timerEnds) timerEnds.style.display = 'none';
                                 } else if (timerBox && status === 'completed') {
+                                    timerBox.dataset.sportsOverride = 'true';
                                     timerLabel.textContent = 'Game status';
                                     timerBox.textContent = 'FINAL';
                                     timerBox.style.color = 'var(--yes-green)';
                                     timerBox.style.fontSize = '1.3rem';
                                     if (timerEnds) timerEnds.style.display = 'none';
+                                } else if (timerBox && status === 'pre_game') {
+                                    timerBox.dataset.sportsOverride = 'false';
                                 }
                             }
                         } catch(e) {
