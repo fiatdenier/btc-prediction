@@ -1265,7 +1265,19 @@
                                     timerBox.style.fontSize = '1.3rem';
                                     if (timerEnds) timerEnds.style.display = 'none';
                                 } else if (timerBox && status === 'pre_game') {
-                                    timerBox.dataset.sportsOverride = 'false';
+                                    // Show countdown to tip-off in the timer box, not 90-day deadline
+                                    timerBox.dataset.sportsOverride = 'true';
+                                    const startTs = commence_time
+                                        ? Math.floor(new Date(commence_time.replace('Z','')+'Z').getTime()/1000) : 0;
+                                    const nowSec2 = Math.floor(Date.now()/1000);
+                                    const leftToTipoff = startTs ? Math.max(0, startTs - nowSec2) : 0;
+                                    const sportLabel2 = (currentMarket.question||'').toLowerCase().includes('nfl') ? '🏈 Kickoff in' : '🏀 Tip-off in';
+                                    if (timerLabel) timerLabel.textContent = sportLabel2;
+                                    timerBox.textContent = leftToTipoff > 0 ? fmtCountdown(leftToTipoff) : 'Starting soon';
+                                    timerBox.style.fontSize = '1.6rem';
+                                    timerBox.style.color = '#f59e0b';
+                                    const endsEl = timerBox.parentElement ? timerBox.parentElement.nextElementSibling : null;
+                                    if (endsEl) endsEl.style.display = 'none';
                                 }
                             }
                         } catch(e) {
