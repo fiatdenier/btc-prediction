@@ -1250,10 +1250,10 @@
                                 const timerBox = document.getElementById('sweat-modal-timer');
                                 const timerLabel = timerBox ? timerBox.previousElementSibling : null;
                                 const timerEnds = timerBox ? timerBox.parentElement.nextElementSibling : null;
-                                if (timerBox && status === 'in_progress' && period_label) {
+                                if (timerBox && status === 'in_progress') {
                                     timerBox.dataset.sportsOverride = 'true';
                                     timerLabel.textContent = 'Game clock';
-                                    timerBox.textContent = period_label;
+                                    timerBox.textContent = period_label || 'LIVE';
                                     timerBox.style.fontSize = '1.3rem';
                                     timerBox.style.color = '#f59e0b';
                                     if (timerEnds) timerEnds.style.display = 'none';
