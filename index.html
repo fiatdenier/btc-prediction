@@ -968,9 +968,16 @@
                     }
                     const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
                     const extremeVal = isDown ? (currentMarket.lowest_price_during_sweat || null) : (currentMarket.highest_price_during_sweat || null);
-                    const sweatDeadlineTs = currentMarket.sweat_deadline
+                    // For sports: use betting_deadline+1hr (= tip-off) not the 90-day sweat_deadline
+                    const _rawDeadlineTs = currentMarket.sweat_deadline
                         ? Math.floor(new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()/1000)
                         : 0;
+                    let sweatDeadlineTs = _rawDeadlineTs;
+                    if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket.betting_deadline) {
+                        try {
+                            sweatDeadlineTs = Math.floor(new Date(currentMarket.betting_deadline.replace('Z','')+'Z').getTime()/1000) + 3600;
+                        } catch(e) {}
+                    }
 
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
@@ -1050,8 +1057,14 @@
                     let sportsTipoffTs = 0;
                     if ((currentMarket.category||'bitcoin') === 'sports') {
                         try {
-                            const bdl = currentMarket.betting_deadline || '';
-                            sportsTipoffTs = Math.floor(new Date(bdl.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            // Use cached commence_time if available, else betting_deadline+1hr as fallback
+                            const ct = currentMarket._commence_time || '';
+                            if (ct) {
+                                sportsTipoffTs = Math.floor(new Date(ct.replace('Z','')+'Z').getTime()/1000);
+                            } else {
+                                const bdl = currentMarket.betting_deadline || '';
+                                sportsTipoffTs = Math.floor(new Date(bdl.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            }
                         } catch(e) {}
                     }
 
@@ -1061,6 +1074,10 @@
                         if (timerEl && timerEl.dataset.sportsOverride === 'true') return;
                         const nowSec = Math.floor(Date.now() / 1000);
                         // Sports pre-game: count down to tip-off, not 90-day deadline
+                        // Re-check _commence_time in case it arrived after interval started
+                        if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket._commence_time && !sportsTipoffTs) {
+                            try { sportsTipoffTs = Math.floor(new Date(currentMarket._commence_time.replace('Z','')+'Z').getTime()/1000); } catch(e) {}
+                        }
                         if ((currentMarket.category||'bitcoin') === 'sports' && sportsTipoffTs && nowSec < sportsTipoffTs) {
                             const left = sportsTipoffTs - nowSec;
                             timerEl.textContent = fmtCountdown(left);
@@ -1188,6 +1205,8 @@
                             }
 
                             const { status, home_team, away_team, home_score, away_score, commence_time } = d;
+                            // Cache commence_time on currentMarket so timer can use it
+                            if (commence_time && currentMarket) currentMarket._commence_time = commence_time;
 
                             if (status === 'pre_game' || (home_score === null && away_score === null)) {
                                 const nowMs = Date.now();
