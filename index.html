@@ -973,9 +973,15 @@
                         ? Math.floor(new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()/1000)
                         : 0;
                     let sweatDeadlineTs = _rawDeadlineTs;
-                    if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket.betting_deadline) {
+                    if ((currentMarket.category||'bitcoin') === 'sports') {
                         try {
-                            sweatDeadlineTs = Math.floor(new Date(currentMarket.betting_deadline.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            // Use ESPN commence_time if cached, else betting_deadline+1hr as rough fallback
+                            const ct = currentMarket._commence_time || '';
+                            if (ct) {
+                                sweatDeadlineTs = Math.floor(new Date(ct.replace('Z','')+'Z').getTime()/1000);
+                            } else if (currentMarket.betting_deadline) {
+                                sweatDeadlineTs = Math.floor(new Date(currentMarket.betting_deadline.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            }
                         } catch(e) {}
                     }
 
@@ -1075,13 +1081,26 @@
                         const nowSec = Math.floor(Date.now() / 1000);
                         // Sports pre-game: count down to tip-off, not 90-day deadline
                         // Re-check _commence_time in case it arrived after interval started
-                        if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket._commence_time && !sportsTipoffTs) {
-                            try { sportsTipoffTs = Math.floor(new Date(currentMarket._commence_time.replace('Z','')+'Z').getTime()/1000); } catch(e) {}
+                        if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket._commence_time) {
+                            try { 
+                                const newTs = Math.floor(new Date(currentMarket._commence_time.replace('Z','')+'Z').getTime()/1000);
+                                if (newTs !== sportsTipoffTs) sportsTipoffTs = newTs;
+                            } catch(e) {}
                         }
-                        if ((currentMarket.category||'bitcoin') === 'sports' && sportsTipoffTs && nowSec < sportsTipoffTs) {
-                            const left = sportsTipoffTs - nowSec;
-                            timerEl.textContent = fmtCountdown(left);
-                            timerEl.style.color = '#f59e0b';
+                        if ((currentMarket.category||'bitcoin') === 'sports' && sportsTipoffTs) {
+                            if (nowSec < sportsTipoffTs) {
+                                const left = sportsTipoffTs - nowSec;
+                                timerEl.textContent = fmtCountdown(left);
+                                timerEl.style.color = '#f59e0b';
+                            } else {
+                                // Past tip-off — game is live, override takes over from ESPN fetch
+                                timerEl.dataset.sportsOverride = 'true';
+                                const labelEl = document.getElementById('sweat-modal-timer-label');
+                                if (labelEl) labelEl.textContent = '🏀 GAME IN PROGRESS';
+                                timerEl.textContent = 'LIVE';
+                                timerEl.style.color = 'var(--yes-green)';
+                                timerEl.style.fontSize = '1.8rem';
+                            }
                             return;
                         }
                         if (timerEl && sweatDeadlineTs) {
