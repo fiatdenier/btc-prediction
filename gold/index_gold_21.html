@@ -229,29 +229,6 @@
         .category-tab.tab-sports.active  { background: #a855f7; border-color: #a855f7; color: #fff; }
         .category-tab.tab-sports:hover   { border-color: #a855f7; color: #a855f7; }
 
-        .sports-subtabs {
-            display: none;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #1e1e1e;
-        }
-        .sports-subtabs.visible { display: flex; }
-        .sports-subtab {
-            padding: 5px 14px;
-            border-radius: 16px;
-            border: 1px solid #444;
-            background: transparent;
-            color: #aaa;
-            cursor: pointer;
-            font-size: 0.8rem;
-            font-weight: 600;
-            transition: all 0.15s;
-        }
-        .sports-subtab:hover  { border-color: #a855f7; color: #a855f7; }
-        .sports-subtab.active { background: #a855f7; border-color: #a855f7; color: #fff; }
-
         /* BTC Live Ticker */
         .btc-ticker {
             display: flex;
@@ -493,15 +470,6 @@
             <button class="category-tab tab-sports"    data-cat="sports"  onclick="setTab(this)">🏆 Sports</button>
         </div>
 
-        <!-- Sports league sub-tabs — only visible when Sports tab is active -->
-        <div class="sports-subtabs" id="sports-subtabs">
-            <button class="sports-subtab active" data-league="all"   onclick="setSportsLeague(this)">All Sports</button>
-            <button class="sports-subtab"        data-league="nba"   onclick="setSportsLeague(this)">🏀 NBA</button>
-            <button class="sports-subtab"        data-league="nfl"   onclick="setSportsLeague(this)">🏈 NFL</button>
-            <button class="sports-subtab"        data-league="ncaab" onclick="setSportsLeague(this)">🏀 NCAAB</button>
-            <button class="sports-subtab"        data-league="ncaaf" onclick="setSportsLeague(this)">🏈 NCAAF</button>
-        </div>
-
         <div id="active-markets" class="markets-grid">
             <div class="loading">Loading markets...</div>
         </div>
@@ -621,32 +589,11 @@
         let resolvedData = []; // Cache resolved markets for tab filtering
         const scoreCache = {}; // Cache scores by marketId for resolved cards
         let activeResolvedTab = 'all'; // currently selected resolved tab
-        let activeSportsLeague = 'all'; // sub-tab when Sports tab active
-
-        function detectLeague(market) {
-            const q = (market.question || '').toLowerCase();
-            if (q.includes('ncaaf')) return 'ncaaf';
-            if (q.includes('ncaab') || q.includes('ncaa')) return 'ncaab';
-            if (q.includes('nfl'))  return 'nfl';
-            if (q.includes('nba'))  return 'nba';
-            return 'other';
-        }
-
-        function setSportsLeague(btn) {
-            document.querySelectorAll('.sports-subtab').forEach(t => t.classList.remove('active'));
-            btn.classList.add('active');
-            activeSportsLeague = btn.dataset.league;
-            const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
-            displayMarkets(filterByTab(all), 'active-markets');
-        }
 
         function setTab(btn) {
             document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             activeTab = btn.dataset.cat;
-            // Show/hide sports sub-tabs
-            const subtabs = document.getElementById('sports-subtabs');
-            if (subtabs) subtabs.classList.toggle('visible', activeTab === 'sports');
             // Re-render with current cached data filtered to new tab
             const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
             displayMarkets(filterByTab(all), 'active-markets');
@@ -675,22 +622,13 @@
 
         function filterByTab(markets) {
             if (activeTab === 'all') return markets;
-            let filtered = markets.filter(m => (m.category || 'bitcoin') === activeTab);
-            // Apply sports league sub-filter
-            if (activeTab === 'sports' && activeSportsLeague !== 'all') {
-                filtered = filtered.filter(m => detectLeague(m) === activeSportsLeague);
-            }
-            return filtered;
+            return markets.filter(m => (m.category || 'bitcoin') === activeTab);
         }
 
-        function categoryBadge(category, market) {
+        function categoryBadge(category) {
             if (category === 'stocks')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(59,130,246,0.18);color:#3b82f6;border:1px solid #3b82f6;">📈 STOCKS</span>';
-            if (category === 'sports') {
-                const league = market ? detectLeague(market) : 'other';
-                const label = league === 'nba' ? '🏀 NBA' : league === 'nfl' ? '🏈 NFL' : league === 'ncaab' ? '🏀 NCAAB' : league === 'ncaaf' ? '🏈 NCAAF' : '🏆 SPORTS';
-                return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(168,85,247,0.18);color:#a855f7;border:1px solid #a855f7;">' + label + '</span>';
-            }
-            return ''; // bitcoin -- direction badge already shown
+            if (category === 'sports')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(168,85,247,0.18);color:#a855f7;border:1px solid #a855f7;">🏆 SPORTS</span>';
+            return ''; // bitcoin — direction badge already shown
         }
 
         // Returns the direction arrow + label badge for a market
@@ -812,7 +750,7 @@
                     <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div>
                             <span class="status-badge status-${market.status}">${market.status}</span>
-                            ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category, market) : directionLabel(direction)}
+                            ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category) : directionLabel(direction)}
                         </div>
                         <div class="market-question">
                             ${market.question}
@@ -1050,21 +988,15 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // DROP: use highest seen as start → how far has price fallen toward target
-                            const start = currentMarket.sweat_start_price
-                                       || currentMarket.highest_price_during_sweat
-                                       || livePrice;
-                            const range = start - target;
-                            if (range <= 0) return 0;
-                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
+                            // DROP proximity: (1 - (current - target) / target) × 100
+                            // 100% when current = target, lower as current is further above target
+                            if (livePrice <= target) return 100;
+                            return Math.max(0, (1 - (livePrice - target) / target) * 100);
                         }
-                        // PUMP: use lowest seen as start → how far has price risen toward target
-                        const start = currentMarket.sweat_start_price
-                                   || currentMarket.lowest_price_during_sweat
-                                   || livePrice;
-                        const range = target - start;
-                        if (range <= 0) return livePrice >= target ? 100 : 0;
-                        return Math.min(100, Math.max(0, ((livePrice - start) / range) * 100));
+                        // PUMP proximity: (1 - (target - current) / target) × 100
+                        // 100% when current = target, lower as current is further below target
+                        if (livePrice >= target) return 100;
+                        return Math.max(0, (1 - (target - livePrice) / target) * 100);
                     }
 
                     content.innerHTML = `
@@ -1246,7 +1178,7 @@
                                 const extremeEl = document.getElementById('sweat-modal-extreme');
                                 if (extremeEl) {
                                     const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
-                                    if (isDown ? livePrice < cur : livePrice > cur) {
+                                    if (isDown && livePrice < cur) {
                                         extremeEl.dataset.val = livePrice;
                                         currentMarket.lowest_price_during_sweat = livePrice;
                                         extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
