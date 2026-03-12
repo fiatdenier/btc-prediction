@@ -988,7 +988,7 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // DROP: use highest seen as start → how far has price fallen toward target
+                            // DROP: measure how far price has fallen from start toward target
                             const start = currentMarket.sweat_start_price
                                        || currentMarket.highest_price_during_sweat
                                        || livePrice;
@@ -996,10 +996,15 @@
                             if (range <= 0) return 0;
                             return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
                         }
-                        // PUMP: use lowest seen as start → how far has price risen toward target
-                        const start = currentMarket.sweat_start_price
-                                   || currentMarket.lowest_price_during_sweat
-                                   || livePrice;
+                        // PUMP: measure how far price has risen toward target.
+                        // Anchor the start 5% below target so the bar is meaningful
+                        // (using sweat_start_price as the floor makes the bar stay near 0%
+                        //  because current ≈ sweat_start when sweat begins).
+                        const anchor = target * 0.95;
+                        const start = Math.min(
+                            currentMarket.sweat_start_price || livePrice,
+                            anchor
+                        );
                         const range = target - start;
                         if (range <= 0) return livePrice >= target ? 100 : 0;
                         return Math.min(100, Math.max(0, ((livePrice - start) / range) * 100));
@@ -1047,7 +1052,7 @@
                         </div>`}
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
                             <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;" id="sweat-modal-timer-label">
-                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? (((currentMarket.question||'').toLowerCase().includes('nfl')) ? '🏈 Kickoff in' : '🏀 Tip-off in') : 'Game ends in')}
+                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? '🏀 Tip-off in' : 'Game ends in')}
                             </div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
@@ -1096,7 +1101,7 @@
                                 // Past tip-off — game is live, override takes over from ESPN fetch
                                 timerEl.dataset.sportsOverride = 'true';
                                 const labelEl = document.getElementById('sweat-modal-timer-label');
-                                if (labelEl) labelEl.textContent = ((currentMarket.question||'').toLowerCase().includes('nfl') ? '🏈' : '🏀') + ' GAME IN PROGRESS';
+                                if (labelEl) labelEl.textContent = '🏀 GAME IN PROGRESS';
                                 timerEl.textContent = 'LIVE';
                                 timerEl.style.color = 'var(--yes-green)';
                                 timerEl.style.fontSize = '1.8rem';
@@ -1184,7 +1189,7 @@
                                 const extremeEl = document.getElementById('sweat-modal-extreme');
                                 if (extremeEl) {
                                     const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
-                                    if (isDown ? livePrice < cur : livePrice > cur) {
+                                    if (isDown && livePrice < cur) {
                                         extremeEl.dataset.val = livePrice;
                                         currentMarket.lowest_price_during_sweat = livePrice;
                                         extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
