@@ -988,26 +988,15 @@
                     function calcPct(livePrice) {
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // DROP: measure how far price has fallen from start toward target
-                            const start = currentMarket.sweat_start_price
-                                       || currentMarket.highest_price_during_sweat
-                                       || livePrice;
-                            const range = start - target;
-                            if (range <= 0) return 0;
-                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
+                            // DROP proximity: (1 - (current - target) / target) × 100
+                            // 100% when current = target, lower as current is further above target
+                            if (livePrice <= target) return 100;
+                            return Math.max(0, (1 - (livePrice - target) / target) * 100);
                         }
-                        // PUMP: measure how far price has risen toward target.
-                        // Anchor the start 5% below target so the bar is meaningful
-                        // (using sweat_start_price as the floor makes the bar stay near 0%
-                        //  because current ≈ sweat_start when sweat begins).
-                        const anchor = target * 0.95;
-                        const start = Math.min(
-                            currentMarket.sweat_start_price || livePrice,
-                            anchor
-                        );
-                        const range = target - start;
-                        if (range <= 0) return livePrice >= target ? 100 : 0;
-                        return Math.min(100, Math.max(0, ((livePrice - start) / range) * 100));
+                        // PUMP proximity: (1 - (target - current) / target) × 100
+                        // 100% when current = target, lower as current is further below target
+                        if (livePrice >= target) return 100;
+                        return Math.max(0, (1 - (target - livePrice) / target) * 100);
                     }
 
                     content.innerHTML = `
