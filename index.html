@@ -1047,7 +1047,7 @@
                         </div>`}
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
                             <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;" id="sweat-modal-timer-label">
-                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? '🏀 Tip-off in' : 'Game ends in')}
+                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? (((currentMarket.question||'').toLowerCase().includes('nfl')) ? '🏈 Kickoff in' : '🏀 Tip-off in') : 'Game ends in')}
                             </div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
@@ -1096,7 +1096,7 @@
                                 // Past tip-off — game is live, override takes over from ESPN fetch
                                 timerEl.dataset.sportsOverride = 'true';
                                 const labelEl = document.getElementById('sweat-modal-timer-label');
-                                if (labelEl) labelEl.textContent = '🏀 GAME IN PROGRESS';
+                                if (labelEl) labelEl.textContent = ((currentMarket.question||'').toLowerCase().includes('nfl') ? '🏈' : '🏀') + ' GAME IN PROGRESS';
                                 timerEl.textContent = 'LIVE';
                                 timerEl.style.color = 'var(--yes-green)';
                                 timerEl.style.fontSize = '1.8rem';
