@@ -464,7 +464,7 @@
                 <div style="text-align: right;">
                     <label style="color: #888; font-size: 0.9rem; cursor: pointer;">
                         <input type="checkbox" id="timezone-toggle" style="margin-right: 8px;">
-                        Show times in ET (default: UTC)
+                        Show times in EST (default: UTC)
                     </label>
                 </div>
             </div>
@@ -560,18 +560,10 @@
             const useEST = document.getElementById('timezone-toggle')?.checked;
             const pad = n => String(n).padStart(2, '0');
             if (useEST) {
-                // DST-aware Eastern Time via Intl.DateTimeFormat (EDT in summer, EST in winter)
-                const parts = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'America/New_York',
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                }).formatToParts(d);
-                const p = {};
-                parts.forEach(x => p[x.type] = x.value);
-                const isDST = !d.toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).includes('EST');
-                const suffix = isDST ? 'EDT' : 'EST';
-                const hour = p.hour === '24' ? '00' : p.hour;
-                return `${p.year}-${p.month}-${p.day} ${hour}:${p.minute} ${suffix}`;
+                // EST = UTC-5, EDT = UTC-4. Use fixed EST offset (-5) for simplicity
+                const estOffset = -5 * 60; // minutes
+                const estDate = new Date(d.getTime() + estOffset * 60000);
+                return `${estDate.getUTCFullYear()}-${pad(estDate.getUTCMonth()+1)}-${pad(estDate.getUTCDate())} ${pad(estDate.getUTCHours())}:${pad(estDate.getUTCMinutes())} EST`;
             } else {
                 return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
             }
@@ -681,22 +673,14 @@
             });
         }
 
-        function sortBySoonest(markets) {
-            return [...markets].sort((a, b) => {
-                const aTs = a.betting_deadline ? new Date(a.betting_deadline.replace('Z','')+'Z').getTime() : Infinity;
-                const bTs = b.betting_deadline ? new Date(b.betting_deadline.replace('Z','')+'Z').getTime() : Infinity;
-                return aTs - bTs;
-            });
-        }
-
         function filterByTab(markets) {
-            if (activeTab === 'all') return sortBySoonest(markets);
+            if (activeTab === 'all') return markets;
             let filtered = markets.filter(m => (m.category || 'bitcoin') === activeTab);
             // Apply sports league sub-filter
             if (activeTab === 'sports' && activeSportsLeague !== 'all') {
                 filtered = filtered.filter(m => detectLeague(m) === activeSportsLeague);
             }
-            return sortBySoonest(filtered);
+            return filtered;
         }
 
         function categoryBadge(category, market) {
