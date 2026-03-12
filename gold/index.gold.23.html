@@ -821,6 +821,9 @@
                 const resolvedClass = isResolved ? 'resolved' : '';
                 const direction = market.direction || 'up';
                 const isDown = direction === 'down';
+                const extremeLabel = isDown ? 'Lowest' : 'Highest';
+                const extremeValue = isDown ? market.lowest_price_during_sweat : market.highest_price_during_sweat;
+
                 return `
                     <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div>
@@ -891,6 +894,7 @@
                                     <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                                 </div>
                                 <div style="color: #888; font-size: 0.78rem;">
+                                    ${extremeValue ? `${extremeLabel}: $${Number(extremeValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}<br>` : ''}
                                     Ends: ${formatTime(market.sweat_deadline)}
                                 </div>` : (market.category || 'bitcoin') === 'sports' ? `
                                 <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
@@ -1028,6 +1032,20 @@
                     const target = currentMarket.target_price || currentMarket.target_btc_price;
                     const direction = currentMarket.direction || 'up';
                     const isDown = direction === 'down';
+                    // For stocks: sweat_start_price is Monday's open price (set at creation)
+                    // Only clear if it looks like a bad BTC value (> 10000 for a stock)
+                    if ((currentMarket.category||'bitcoin') === 'stocks') {
+                        const sp = currentMarket.sweat_start_price;
+                        const tgt = currentMarket.target_price;
+                        // If start price is wildly out of range vs target, it's the old BTC bug
+                        if (sp && tgt && (sp / tgt > 10 || sp / tgt < 0.1)) {
+                            currentMarket.sweat_start_price = null;
+                            currentMarket.highest_price_during_sweat = null;
+                            currentMarket.lowest_price_during_sweat = null;
+                        }
+                    }
+                    const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
+                    const extremeVal = isDown ? (currentMarket.lowest_price_during_sweat || null) : (currentMarket.highest_price_during_sweat || null);
                     // For sports: use betting_deadline+1hr (= tip-off) not the 90-day sweat_deadline
                     const _rawDeadlineTs = currentMarket.sweat_deadline
                         ? Math.floor(new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()/1000)
@@ -1046,14 +1064,23 @@
                     }
 
                     function calcPct(livePrice) {
-                        // Proximity to target: 0% = far away, 100% = at/past target
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            if (livePrice <= target) return 100;
-                            return Math.max(0, (1 - (livePrice - target) / target) * 100);
+                            // DROP: use highest seen as start → how far has price fallen toward target
+                            const start = currentMarket.sweat_start_price
+                                       || currentMarket.highest_price_during_sweat
+                                       || livePrice;
+                            const range = start - target;
+                            if (range <= 0) return 0;
+                            return Math.min(100, Math.max(0, ((start - livePrice) / range) * 100));
                         }
-                        if (livePrice >= target) return 100;
-                        return Math.max(0, (1 - (target - livePrice) / target) * 100);
+                        // PUMP: use lowest seen as start → how far has price risen toward target
+                        const start = currentMarket.sweat_start_price
+                                   || currentMarket.lowest_price_during_sweat
+                                   || livePrice;
+                        const range = target - start;
+                        if (range <= 0) return livePrice >= target ? 100 : 0;
+                        return Math.min(100, Math.max(0, ((livePrice - start) / range) * 100));
                     }
 
                     content.innerHTML = `
@@ -1089,7 +1116,8 @@
                                 <div id="sweat-modal-bar" style="height: 100%; background: linear-gradient(90deg, var(--btc-orange), ${isDown ? 'var(--no-red)' : 'var(--yes-green)'}); border-radius: 4px; transition: width 0.5s ease; width: 0%;"></div>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.72rem; color: #555;">
-                                <span style="color: #555;">Target: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
+                                <span>${extremeLabel}: <span id="sweat-modal-extreme" data-val="${extremeVal||''}">${extremeVal ? '$'+Number(extremeVal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'}</span></span>
+                                <span>Needs: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
                             </div>
                         </div>` : `
                         <div id="score-panel" style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
@@ -1182,6 +1210,17 @@
                                 priceEl.textContent = formatted;
                                 priceEl.dataset.prev = livePrice;
 
+                                // Update extreme tracker (highest for up, lowest for down)
+                                const extremeEl = document.getElementById('sweat-modal-extreme');
+                                if (extremeEl) {
+                                    const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
+                                    const newExtreme = isDown ? (livePrice < cur) : (livePrice > cur);
+                                    if (newExtreme || !extremeEl.dataset.val) {
+                                        extremeEl.dataset.val = livePrice;
+                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                    }
+                                }
+
                                 // Update progress bar
                                 const pct = calcPct(livePrice);
                                 const barEl = document.getElementById('sweat-modal-bar');
@@ -1210,6 +1249,29 @@
                                 setTimeout(() => { if (priceEl) priceEl.style.color = 'white'; }, 500);
                                 priceEl.textContent = formatted;
                                 priceEl.dataset.prev = livePrice;
+                                // Use backend-tracked extremes (persisted in market JSON)
+                                if (d.highest_price_during_sweat != null)
+                                    currentMarket.highest_price_during_sweat = d.highest_price_during_sweat;
+                                if (d.lowest_price_during_sweat != null)
+                                    currentMarket.lowest_price_during_sweat = d.lowest_price_during_sweat;
+                                // Fallback: seed from live price if backend hasn't tracked yet
+                                if (currentMarket.highest_price_during_sweat == null)
+                                    currentMarket.highest_price_during_sweat = livePrice;
+                                if (currentMarket.lowest_price_during_sweat == null)
+                                    currentMarket.lowest_price_during_sweat = livePrice;
+                                const extremeEl = document.getElementById('sweat-modal-extreme');
+                                if (extremeEl) {
+                                    const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
+                                    if (isDown ? livePrice < cur : livePrice > cur) {
+                                        extremeEl.dataset.val = livePrice;
+                                        currentMarket.lowest_price_during_sweat = livePrice;
+                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                    } else if (!isDown && livePrice > cur) {
+                                        extremeEl.dataset.val = livePrice;
+                                        currentMarket.highest_price_during_sweat = livePrice;
+                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                    }
+                                }
                                 const pct = calcPct(livePrice);
                                 const barEl = document.getElementById('sweat-modal-bar');
                                 const pctEl = document.getElementById('sweat-modal-pct');
