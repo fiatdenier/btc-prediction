@@ -251,6 +251,13 @@
         }
         .sports-subtab:hover  { border-color: #a855f7; color: #a855f7; }
         .sports-subtab.active { background: #a855f7; border-color: #a855f7; color: #fff; }
+        .resolved-sports-subtab {
+            padding: 6px 14px; border-radius: 20px; border: 1px solid #444;
+            background: transparent; color: #aaa; cursor: pointer; font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .resolved-sports-subtab:hover  { border-color: #a855f7; color: #a855f7; }
+        .resolved-sports-subtab.active { background: #a855f7; border-color: #a855f7; color: #fff; }
 
         /* BTC Live Ticker */
         .btc-ticker {
@@ -508,11 +515,19 @@
 
         <div id="resolved-section" style="display: none; margin-top: 60px;">
             <h2 class="section-title">✅ Recently Resolved</h2>
-            <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
-                <button class="resolved-tab active" data-cat="all" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: var(--btc-orange); color: #000; font-weight: bold; cursor: pointer; font-size: 0.85rem;">All</button>
-                <button class="resolved-tab" data-cat="bitcoin" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">₿ Bitcoin</button>
-                <button class="resolved-tab" data-cat="stocks" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">📈 Stocks</button>
-                <button class="resolved-tab" data-cat="sports" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">🏆 Sports</button>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                <button class="resolved-tab active" data-cat="all"     onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: var(--btc-orange); color: #000; font-weight: bold; cursor: pointer; font-size: 0.85rem;">All</button>
+                <button class="resolved-tab"        data-cat="bitcoin" onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">₿ Bitcoin</button>
+                <button class="resolved-tab"        data-cat="stocks"  onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">📈 Stocks</button>
+                <button class="resolved-tab"        data-cat="sports"  onclick="setResolvedTab(this)" style="padding: 8px 18px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.85rem;">🏆 Sports</button>
+            </div>
+            <!-- Sports league sub-tabs — only visible when Sports resolved tab is active -->
+            <div id="resolved-sports-subtabs" style="display: none; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="resolved-sports-subtab active" data-league="all"   onclick="setResolvedSportsLeague(this)">All Sports</button>
+                <button class="resolved-sports-subtab"        data-league="nba"   onclick="setResolvedSportsLeague(this)">🏀 NBA</button>
+                <button class="resolved-sports-subtab"        data-league="nfl"   onclick="setResolvedSportsLeague(this)">🏈 NFL</button>
+                <button class="resolved-sports-subtab"        data-league="ncaab" onclick="setResolvedSportsLeague(this)">🏀 NCAAB</button>
+                <button class="resolved-sports-subtab"        data-league="ncaaf" onclick="setResolvedSportsLeague(this)">🏈 NCAAF</button>
             </div>
             <div id="resolved-markets" class="markets-grid"></div>
         </div>
@@ -630,6 +645,7 @@
         const scoreCache = {}; // Cache scores by marketId for resolved cards
         let activeResolvedTab = 'all'; // currently selected resolved tab
         let activeSportsLeague = 'all'; // sub-tab when Sports tab active
+        let activeResolvedSportsLeague = 'all'; // sub-tab when Sports resolved tab active
 
         function detectLeague(market) {
             const q = (market.question || '').toLowerCase();
@@ -661,8 +677,14 @@
         }
 
         function filterResolvedByTab(markets) {
-            if (activeResolvedTab === 'all') return markets;
-            return markets.filter(m => (m.category || 'bitcoin') === activeResolvedTab);
+            let filtered = markets;
+            if (activeResolvedTab !== 'all') {
+                filtered = filtered.filter(m => (m.category || 'bitcoin') === activeResolvedTab);
+            }
+            if (activeResolvedTab === 'sports' && activeResolvedSportsLeague !== 'all') {
+                filtered = filtered.filter(m => detectLeague(m) === activeResolvedSportsLeague);
+            }
+            return filtered;
         }
 
         function setResolvedTab(btn) {
@@ -675,6 +697,26 @@
             btn.style.color = '#000';
             btn.style.borderColor = 'var(--btc-orange)';
             activeResolvedTab = btn.dataset.cat;
+            // Show/hide sports league sub-tabs
+            const subtabs = document.getElementById('resolved-sports-subtabs');
+            if (subtabs) subtabs.style.display = activeResolvedTab === 'sports' ? 'flex' : 'none';
+            // Reset league filter when switching away from sports
+            if (activeResolvedTab !== 'sports') {
+                activeResolvedSportsLeague = 'all';
+                document.querySelectorAll('.resolved-sports-subtab').forEach(t => t.classList.remove('active'));
+                const allBtn = document.querySelector('.resolved-sports-subtab[data-league="all"]');
+                if (allBtn) allBtn.classList.add('active');
+            }
+            displayMarkets(filterResolvedByTab(resolvedData), 'resolved-markets');
+            filterResolvedByTab(resolvedData).forEach(m => {
+                if ((m.category||'bitcoin') === 'sports') renderResolvedScore(m.id);
+            });
+        }
+
+        function setResolvedSportsLeague(btn) {
+            document.querySelectorAll('.resolved-sports-subtab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            activeResolvedSportsLeague = btn.dataset.league;
             displayMarkets(filterResolvedByTab(resolvedData), 'resolved-markets');
             filterResolvedByTab(resolvedData).forEach(m => {
                 if ((m.category||'bitcoin') === 'sports') renderResolvedScore(m.id);

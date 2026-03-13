@@ -229,6 +229,29 @@
         .category-tab.tab-sports.active  { background: #a855f7; border-color: #a855f7; color: #fff; }
         .category-tab.tab-sports:hover   { border-color: #a855f7; color: #a855f7; }
 
+        .sports-subtabs {
+            display: none;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #1e1e1e;
+        }
+        .sports-subtabs.visible { display: flex; }
+        .sports-subtab {
+            padding: 5px 14px;
+            border-radius: 16px;
+            border: 1px solid #444;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .sports-subtab:hover  { border-color: #a855f7; color: #a855f7; }
+        .sports-subtab.active { background: #a855f7; border-color: #a855f7; color: #fff; }
+
         /* BTC Live Ticker */
         .btc-ticker {
             display: flex;
@@ -441,7 +464,7 @@
                 <div style="text-align: right;">
                     <label style="color: #888; font-size: 0.9rem; cursor: pointer;">
                         <input type="checkbox" id="timezone-toggle" style="margin-right: 8px;">
-                        Show times in EST (default: UTC)
+                        Show times in ET (default: UTC)
                     </label>
                 </div>
             </div>
@@ -468,6 +491,15 @@
             <button class="category-tab"               data-cat="bitcoin" onclick="setTab(this)">₿ Bitcoin</button>
             <button class="category-tab tab-stocks"    data-cat="stocks"  onclick="setTab(this)">📈 Stocks</button>
             <button class="category-tab tab-sports"    data-cat="sports"  onclick="setTab(this)">🏆 Sports</button>
+        </div>
+
+        <!-- Sports league sub-tabs — only visible when Sports tab is active -->
+        <div class="sports-subtabs" id="sports-subtabs">
+            <button class="sports-subtab active" data-league="all"   onclick="setSportsLeague(this)">All Sports</button>
+            <button class="sports-subtab"        data-league="nba"   onclick="setSportsLeague(this)">🏀 NBA</button>
+            <button class="sports-subtab"        data-league="nfl"   onclick="setSportsLeague(this)">🏈 NFL</button>
+            <button class="sports-subtab"        data-league="ncaab" onclick="setSportsLeague(this)">🏀 NCAAB</button>
+            <button class="sports-subtab"        data-league="ncaaf" onclick="setSportsLeague(this)">🏈 NCAAF</button>
         </div>
 
         <div id="active-markets" class="markets-grid">
@@ -528,10 +560,18 @@
             const useEST = document.getElementById('timezone-toggle')?.checked;
             const pad = n => String(n).padStart(2, '0');
             if (useEST) {
-                // EST = UTC-5, EDT = UTC-4. Use fixed EST offset (-5) for simplicity
-                const estOffset = -5 * 60; // minutes
-                const estDate = new Date(d.getTime() + estOffset * 60000);
-                return `${estDate.getUTCFullYear()}-${pad(estDate.getUTCMonth()+1)}-${pad(estDate.getUTCDate())} ${pad(estDate.getUTCHours())}:${pad(estDate.getUTCMinutes())} EST`;
+                // DST-aware Eastern Time via Intl.DateTimeFormat (EDT in summer, EST in winter)
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/New_York',
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                }).formatToParts(d);
+                const p = {};
+                parts.forEach(x => p[x.type] = x.value);
+                const isDST = !d.toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' }).includes('EST');
+                const suffix = isDST ? 'EDT' : 'EST';
+                const hour = p.hour === '24' ? '00' : p.hour;
+                return `${p.year}-${p.month}-${p.day} ${hour}:${p.minute} ${suffix}`;
             } else {
                 return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
             }
@@ -587,12 +627,34 @@
         let marketsData = {}; // Cache market data by id
         let activeTab = 'all'; // currently selected category tab
         let resolvedData = []; // Cache resolved markets for tab filtering
+        const scoreCache = {}; // Cache scores by marketId for resolved cards
         let activeResolvedTab = 'all'; // currently selected resolved tab
+        let activeSportsLeague = 'all'; // sub-tab when Sports tab active
+
+        function detectLeague(market) {
+            const q = (market.question || '').toLowerCase();
+            if (q.includes('ncaaf')) return 'ncaaf';
+            if (q.includes('ncaab') || q.includes('ncaa')) return 'ncaab';
+            if (q.includes('nfl'))  return 'nfl';
+            if (q.includes('nba'))  return 'nba';
+            return 'other';
+        }
+
+        function setSportsLeague(btn) {
+            document.querySelectorAll('.sports-subtab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            activeSportsLeague = btn.dataset.league;
+            const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
+            displayMarkets(filterByTab(all), 'active-markets');
+        }
 
         function setTab(btn) {
             document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             activeTab = btn.dataset.cat;
+            // Show/hide sports sub-tabs
+            const subtabs = document.getElementById('sports-subtabs');
+            if (subtabs) subtabs.classList.toggle('visible', activeTab === 'sports');
             // Re-render with current cached data filtered to new tab
             const all = Object.values(marketsData).filter(m => m._container === 'active-markets');
             displayMarkets(filterByTab(all), 'active-markets');
@@ -614,17 +676,37 @@
             btn.style.borderColor = 'var(--btc-orange)';
             activeResolvedTab = btn.dataset.cat;
             displayMarkets(filterResolvedByTab(resolvedData), 'resolved-markets');
+            filterResolvedByTab(resolvedData).forEach(m => {
+                if ((m.category||'bitcoin') === 'sports') renderResolvedScore(m.id);
+            });
+        }
+
+        function sortBySoonest(markets) {
+            return [...markets].sort((a, b) => {
+                const aTs = a.betting_deadline ? new Date(a.betting_deadline.replace('Z','')+'Z').getTime() : Infinity;
+                const bTs = b.betting_deadline ? new Date(b.betting_deadline.replace('Z','')+'Z').getTime() : Infinity;
+                return aTs - bTs;
+            });
         }
 
         function filterByTab(markets) {
-            if (activeTab === 'all') return markets;
-            return markets.filter(m => (m.category || 'bitcoin') === activeTab);
+            if (activeTab === 'all') return sortBySoonest(markets);
+            let filtered = markets.filter(m => (m.category || 'bitcoin') === activeTab);
+            // Apply sports league sub-filter
+            if (activeTab === 'sports' && activeSportsLeague !== 'all') {
+                filtered = filtered.filter(m => detectLeague(m) === activeSportsLeague);
+            }
+            return sortBySoonest(filtered);
         }
 
-        function categoryBadge(category) {
+        function categoryBadge(category, market) {
             if (category === 'stocks')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(59,130,246,0.18);color:#3b82f6;border:1px solid #3b82f6;">📈 STOCKS</span>';
-            if (category === 'sports')  return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(168,85,247,0.18);color:#a855f7;border:1px solid #a855f7;">🏆 SPORTS</span>';
-            return ''; // bitcoin — direction badge already shown
+            if (category === 'sports') {
+                const league = market ? detectLeague(market) : 'other';
+                const label = league === 'nba' ? '🏀 NBA' : league === 'nfl' ? '🏈 NFL' : league === 'ncaab' ? '🏀 NCAAB' : league === 'ncaaf' ? '🏈 NCAAF' : '🏆 SPORTS';
+                return '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:0.7rem;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin-left:8px;background:rgba(168,85,247,0.18);color:#a855f7;border:1px solid #a855f7;">' + label + '</span>';
+            }
+            return ''; // bitcoin -- direction badge already shown
         }
 
         // Returns the direction arrow + label badge for a market
@@ -660,20 +742,24 @@
                 const activeKey  = active.map(stateKey).sort().join(',');
                 const cachedKey  = Object.values(marketsData).filter(m => m._container === 'active-markets').map(stateKey).sort().join(',');
 
+                // Update cache first so fetchCardScore/fetchCardPrice can read ticker etc.
+                active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
+
                 if (activeKey !== cachedKey) {
                     // Full render needed — phase/status changed or markets added/removed
                     displayMarkets(filterByTab(active), 'active-markets');
-                    // Re-fetch card scores immediately after re-render so they don't flash "Loading..."
+                    // Re-fetch card data immediately after re-render
                     active.forEach(m => {
-                        if (m.phase === 'sweat' && (m.category || 'bitcoin') === 'sports') fetchCardScore(m.id);
+                        if (m.phase === 'sweat') {
+                            const cat = m.category || 'bitcoin';
+                            if (cat === 'sports') fetchCardScore(m.id);
+                            else if (cat === 'stocks') fetchCardPrice(m.id, m);
+                        }
                     });
                 } else {
                     // Just update the numbers in-place, don't touch timer DOM
                     active.forEach(m => updateMarketCard(m));
                 }
-
-                // Update cache (always store full list, tab filter applied at render time)
-                active.forEach(m => { marketsData[m.id] = {...m, _container: 'active-markets'}; });
 
                 const resolvedSection = document.getElementById('resolved-section');
                 const claimSection = document.getElementById('claim-section');
@@ -681,8 +767,13 @@
 
                 if (resolved.length > 0) {
                     resolvedData = resolved;
+                    // Store resolved markets in marketsData so renderResolvedScore can read final scores
+                    resolved.forEach(m => { marketsData[m.id] = {...m, _container: 'resolved-markets'}; });
                     displayMarkets(filterResolvedByTab(resolved), 'resolved-markets');
                     resolvedSection.style.display = 'block';
+                    resolved.forEach(m => {
+                        if ((m.category||'bitcoin') === 'sports') renderResolvedScore(m.id);
+                    });
                 } else {
                     resolvedData = [];
                     resolvedSection.style.display = 'none';
@@ -702,9 +793,11 @@
             if (yesEl) yesEl.textContent = market.yes_percentage + '%';
             if (noEl) noEl.textContent = market.no_percentage + '%';
             if (poolEl) poolEl.textContent = market.total_pool.toLocaleString() + ' sats';
-            // Refresh card score for sports sweat markets (score div already exists, just update)
-            if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                fetchCardScore(market.id);
+            // Refresh sports card score on poll; stocks has its own 30s interval
+            if (market.phase === 'sweat') {
+                const cat = market.category || 'bitcoin';
+                if (cat === 'sports') fetchCardScore(market.id);
+                // stocks: 30s interval set when card was first rendered
             }
         }
 
@@ -728,16 +821,16 @@
                 const resolvedClass = isResolved ? 'resolved' : '';
                 const direction = market.direction || 'up';
                 const isDown = direction === 'down';
-                const extremeLabel = isDown ? 'Lowest' : 'Highest';
-                const extremeValue = isDown ? market.lowest_price_during_sweat : market.highest_price_during_sweat;
-
                 return `
                     <div class="market-card ${resolvedClass}" onclick="openMarket('${market.id}')">
                         <div>
                             <span class="status-badge status-${market.status}">${market.status}</span>
-                            ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category) : directionLabel(direction)}
+                            ${(market.category || 'bitcoin') !== 'bitcoin' ? categoryBadge(market.category, market) : directionLabel(direction)}
                         </div>
-                        <div class="market-question">${market.question}</div>
+                        <div class="market-question">
+                            ${market.question}
+                            <span style="color:#555;font-size:0.65rem;font-weight:normal;margin-left:6px;">#${market.id.slice(-6)}</span>
+                        </div>
                         
                         <div class="market-stats">
                             <div class="stat">
@@ -755,10 +848,11 @@
                         </div>
 
                         ${(market.status === 'resolved' || market.phase === 'resolved') ? `
-                            <div style="text-align: center; margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
-                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem;">
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px; text-align: center;">
+                                <div style="color: var(--resolved-green); font-weight: bold; font-size: 1.1rem; margin-bottom: ${(market.category||'bitcoin')==='sports' ? '6px' : '0'};">
                                     ✅ ${market.outcome ? market.outcome + ' Won' : 'Resolved'}
                                 </div>
+                                ${(market.category||'bitcoin')==='sports' ? '<div id="resolved-score-' + market.id + '" style="font-size:0.82rem;"></div>' : ''}
                             </div>
                         ` : market.phase === 'betting' ? `
                             <div style="padding: 15px; text-align: center; border-radius: 8px; background: rgba(34, 197, 94, 0.2); margin-top: 10px;">
@@ -766,19 +860,20 @@
                                     ⏰ BETTING OPEN
                                 </div>
                                 <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 8px;">${conditionText(market)}</div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                                <div style="display: grid; grid-template-columns: ${(market.category||'bitcoin')==='bitcoin' ? '1fr 1fr' : '1fr'}; gap: 10px; margin-bottom: 8px;">
                                     <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
                                         <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Betting closes in</div>
                                         <div id="bet-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #22c55e;">--:--:--</div>
                                     </div>
+                                    ${(market.category||'bitcoin')==='bitcoin' ? `
                                     <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px;">
                                         <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                         <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
-                                    </div>
+                                    </div>` : ''}
                                 </div>
                                 <div style="color: #666; font-size: 0.78rem;">
                                     Betting closes: ${formatTime(market.betting_deadline)}<br>
-                                    ${market.sweat_deadline ? `Game ends: ${formatTime(market.sweat_deadline)}` : ''}
+                                    ${(market.category||'bitcoin')==='bitcoin' && market.sweat_deadline ? `Game ends: ${formatTime(market.sweat_deadline)}` : ''}
                                 </div>
                             </div>
                         ` : market.phase === 'sweat' ? `
@@ -790,18 +885,21 @@
                                 ${(market.category || 'bitcoin') === 'bitcoin' ? `
                                 <div style="color: #fff; font-size: 1rem; margin-bottom: 8px;">
                                     Target: <strong>$${market.target_btc_price?.toLocaleString()}</strong>
-                                </div>` : `
-                                <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
-                                    Loading score...
-                                </div>`}
+                                </div>
                                 <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
                                     <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Game ends in</div>
                                     <div id="sweat-timer-${market.id}" style="font-family: monospace; font-size: 1.1rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                                 </div>
                                 <div style="color: #888; font-size: 0.78rem;">
-                                    ${extremeValue ? `${extremeLabel}: $${Number(extremeValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}<br>` : ''}
                                     Ends: ${formatTime(market.sweat_deadline)}
-                                </div>
+                                </div>` : (market.category || 'bitcoin') === 'sports' ? `
+                                <div id="card-score-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px; color: #888; font-size: 0.82rem;">
+                                    Loading score...
+                                </div>` : `
+                                <div id="card-price-${market.id}" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
+                                    <div style="color: #888; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 4px;">Current Price</div>
+                                    <div style="font-family: monospace; font-size: 1rem; font-weight: bold; color: #fff;">Loading...</div>
+                                </div>`}
                             </div>
                         ` : ''}
                     </div>
@@ -815,15 +913,71 @@
                 }
             });
 
-            // Fetch live scores for sports sweat cards
+            // Fetch live scores/prices for sweat cards
             markets.forEach(market => {
-                if (market.phase === 'sweat' && (market.category || 'bitcoin') === 'sports') {
-                    fetchCardScore(market.id);
+                if (market.phase === 'sweat') {
+                    const cat = market.category || 'bitcoin';
+                    if (cat === 'sports') fetchCardScore(market.id);
+                    else if (cat === 'stocks') fetchCardPrice(market.id, market);
                 }
             });
         }
 
         // Fetch and render score into a market card's score div
+        function renderResolvedScore(marketId) {
+            const el = document.getElementById('resolved-score-' + marketId);
+            if (!el) return;
+            // Priority: 1) marketsData (final_* fields saved at resolution, survives restarts)
+            //           2) scoreCache (live memory, populated during sweat phase)
+            //           3) hide gracefully
+            const md = marketsData[marketId];
+            let s = scoreCache[marketId];
+            if (!s && md && md.final_home_score != null) {
+                s = { home_team: md.final_home_team, away_team: md.final_away_team,
+                      home_score: md.final_home_score, away_score: md.final_away_score };
+            }
+            if (!s) { el.style.display = 'none'; return; }
+            const { home_team, away_team, home_score, away_score } = s;
+            const homeLead = (home_score ?? 0) >= (away_score ?? 0);
+            el.innerHTML =
+                '<div style="display:flex;justify-content:space-between;padding:2px 8px;color:' + (homeLead?'#fff':'#aaa') + ';font-weight:' + (homeLead?'bold':'normal') + ';">' +
+                    '<span>' + home_team + '</span><span style="font-family:monospace;color:' + (homeLead?'var(--yes-green)':'#888') + ';">' + home_score + '</span>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:space-between;padding:2px 8px;color:' + (!homeLead?'#fff':'#aaa') + ';font-weight:' + (!homeLead?'bold':'normal') + ';">' +
+                    '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (!homeLead?'var(--yes-green)':'#888') + ';">' + away_score + '</span>' +
+                '</div>';
+        }
+
+        async function fetchCardPrice(marketId, market) {
+            const el = document.getElementById('card-price-' + marketId);
+            if (!el) return;
+            const m = market || marketsData[marketId];
+            if (!m || !m.ticker) return;
+            // Don't poll resolved markets
+            if (m.status === 'resolved' || m.phase === 'resolved') { el.style.display = 'none'; return; }
+            const market_obj = m;
+            try {
+                const r = await fetch(API_BASE + '/market/' + marketId + '/live-score');
+                const d = await r.json();
+                // Stocks live-score endpoint returns current_price
+                if (d.current_price != null) {
+                    const target = market_obj.target_price || market_obj.target_btc_price;
+                    const direction = market_obj.direction || 'up';
+                    const hit = direction === 'up' ? d.current_price >= target : d.current_price <= target;
+                    const color = hit ? 'var(--yes-green)' : '#fff';
+                    el.innerHTML =
+                        '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div>' +
+                        '<div style="font-family:monospace;font-size:1rem;font-weight:bold;color:' + color + ';">$' + Number(d.current_price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
+                        '<div style="color:#888;font-size:0.7rem;margin-top:2px;">Target: $' + Number(target).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>';
+                } else {
+                    el.innerHTML = '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div><div style="color:#555;font-size:0.8rem;">Market closed</div>';
+                }
+            } catch(e) {
+                const el2 = document.getElementById('card-price-' + marketId);
+                if (el2) el2.innerHTML = '<div style="color:#888;font-size:0.7rem;text-transform:uppercase;margin-bottom:4px;">Current Price</div><div style="color:#555;font-size:0.8rem;">Unavailable</div>';
+            }
+        }
+
         async function fetchCardScore(marketId) {
             const el = document.getElementById('card-score-' + marketId);
             if (!el) return;
@@ -835,6 +989,8 @@
                     return;
                 }
                 const { status, home_team, away_team, home_score, away_score, period_label } = d;
+                // Cache for resolved card display
+                if (home_score !== null) scoreCache[marketId] = { home_team, away_team, home_score, away_score };
                 const homeLead = (home_score ?? 0) > (away_score ?? 0);
                 const awayLead = (away_score ?? 0) > (home_score ?? 0);
                 const statusLine = status === 'completed'
@@ -848,6 +1004,11 @@
                     '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + (awayLead ? '#fff' : '#aaa') + ';font-weight:' + (awayLead ? 'bold' : 'normal') + ';">' +
                         '<span>' + away_team + '</span><span style="font-family:monospace;color:' + (awayLead ? 'var(--yes-green)' : '#888') + ';">' + (away_score ?? '—') + '</span>' +
                     '</div>';
+                // Game finished — trigger backend resolution
+                if (status === 'completed') {
+                    fetch(API_BASE + '/market/' + marketId + '/trigger-resolve', { method: 'POST' })
+                        .catch(() => {});
+                }
             } catch(e) {
                 const el2 = document.getElementById('card-score-' + marketId);
                 if (el2) el2.textContent = 'Score unavailable';
@@ -864,30 +1025,35 @@
                 const content = document.getElementById('modal-content');
 
                 if (currentMarket.phase === 'sweat') {
-                    const target = currentMarket.target_btc_price;
+                    const target = currentMarket.target_price || currentMarket.target_btc_price;
                     const direction = currentMarket.direction || 'up';
                     const isDown = direction === 'down';
-                    const extremeLabel = isDown ? 'Lowest Seen' : 'Highest Seen';
-                    const extremeVal = isDown ? (currentMarket.lowest_price_during_sweat || null) : (currentMarket.highest_price_during_sweat || null);
-                    const sweatDeadlineTs = currentMarket.sweat_deadline
+                    // For sports: use betting_deadline+1hr (= tip-off) not the 90-day sweat_deadline
+                    const _rawDeadlineTs = currentMarket.sweat_deadline
                         ? Math.floor(new Date(currentMarket.sweat_deadline.replace('Z','')+'Z').getTime()/1000)
                         : 0;
+                    let sweatDeadlineTs = _rawDeadlineTs;
+                    if ((currentMarket.category||'bitcoin') === 'sports') {
+                        try {
+                            // Use ESPN commence_time if cached, else betting_deadline+1hr as rough fallback
+                            const ct = currentMarket._commence_time || '';
+                            if (ct) {
+                                sweatDeadlineTs = Math.floor(new Date(ct.replace('Z','')+'Z').getTime()/1000);
+                            } else if (currentMarket.betting_deadline) {
+                                sweatDeadlineTs = Math.floor(new Date(currentMarket.betting_deadline.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            }
+                        } catch(e) {}
+                    }
 
                     function calcPct(livePrice) {
+                        // Proximity to target: 0% = far away, 100% = at/past target
                         if (!livePrice || !target) return 0;
                         if (isDown) {
-                            // For DROP: progress = how far price has fallen toward target
-                            // Use sweat_start_price if available; fall back to livePrice * 1.05 as estimate
-                            const start = currentMarket.sweat_start_price || (livePrice * 1.05);
-                            const range = start - target;
-                            if (range <= 0) return 0;
-                            // How far has price dropped from start toward target?
-                            const dropped = start - livePrice;
-                            return Math.min(100, Math.max(0, (dropped / range) * 100));
+                            if (livePrice <= target) return 100;
+                            return Math.max(0, (1 - (livePrice - target) / target) * 100);
                         }
-                        // For PUMP: progress = livePrice as % of target
-                        const start = currentMarket.sweat_start_price || (target * 0.95);
-                        return Math.min(100, Math.max(0, ((livePrice - start) / (target - start)) * 100));
+                        if (livePrice >= target) return 100;
+                        return Math.max(0, (1 - (target - livePrice) / target) * 100);
                     }
 
                     content.innerHTML = `
@@ -897,7 +1063,7 @@
                             ${conditionText(currentMarket)}
                         </div>
 
-                        ${                        (currentMarket.category || 'bitcoin') === 'bitcoin' ? `
+                        ${                        ((currentMarket.category || 'bitcoin') === 'bitcoin' || (currentMarket.category) === 'stocks') ? `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                             <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
                                 <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Target Price</div>
@@ -905,9 +1071,11 @@
                                 <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">${isDown ? '▼ needs to DROP below' : '▲ needs to PUMP above'}</div>
                             </div>
                             <div style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; text-align: center;">
-                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Current BTC Price</div>
+                                <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                                    ${(currentMarket.category||'bitcoin')==='stocks' ? (currentMarket.ticker||'Stock') + ' Price' : 'Current BTC Price'}
+                                </div>
                                 <div id="sweat-modal-price" data-prev="${window.liveBtcPrice||''}" style="font-size: 1.4rem; font-weight: bold; color: white; transition: color 0.4s;">
-                                    ${window.liveBtcPrice ? '$' + window.liveBtcPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...'}
+                                    ${(currentMarket.category||'bitcoin')==='stocks' ? 'Loading...' : (window.liveBtcPrice ? '$' + window.liveBtcPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...')}
                                 </div>
                             </div>
                         </div>
@@ -921,28 +1089,70 @@
                                 <div id="sweat-modal-bar" style="height: 100%; background: linear-gradient(90deg, var(--btc-orange), ${isDown ? 'var(--no-red)' : 'var(--yes-green)'}); border-radius: 4px; transition: width 0.5s ease; width: 0%;"></div>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.72rem; color: #555;">
-                                <span>${extremeLabel}: <span id="sweat-modal-extreme" data-val="${extremeVal||''}">${extremeVal ? '$'+Number(extremeVal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'}</span></span>
-                                <span>Needs: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
+                                <span style="color: #555;">Target: <span style="color: var(--btc-orange);">$${target?.toLocaleString()}</span></span>
                             </div>
                         </div>` : `
                         <div id="score-panel" style="background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
                             <div style="text-align:center; color:#888; font-size:0.85rem;">Loading score...</div>
                         </div>`}
                         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px;">
-                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Game ends in</div>
+                            <div style="color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;" id="sweat-modal-timer-label">
+                                ${(currentMarket.category||'bitcoin')==='stocks' ? 'Market closes in' : (currentMarket.category==='sports' ? '🏀 Tip-off in' : 'Game ends in')}
+                            </div>
                             <div id="sweat-modal-timer" style="font-family: monospace; font-size: 1.6rem; font-weight: bold; color: #f59e0b;">--:--:--</div>
                         </div>
 
-                        <div style="text-align: center; color: #555; font-size: 0.8rem;">
-                            Ends: ${formatTime(currentMarket.sweat_deadline)}
+                        <div style="text-align: center; color: #555; font-size: 0.8rem;" id="sweat-modal-ends-line">
+                            ${(currentMarket.category||'bitcoin') === 'sports' ? '' : 'Ends: ' + formatTime(currentMarket.sweat_deadline)}
                         </div>
                     `;
 
                     // Live update loop for sweat modal
                     if (window._sweatModalInterval) clearInterval(window._sweatModalInterval);
+                    // For sports: compute tip-off time (betting_deadline + 1hr) to use as timer
+                    let sportsTipoffTs = 0;
+                    if ((currentMarket.category||'bitcoin') === 'sports') {
+                        try {
+                            // Use cached commence_time if available, else betting_deadline+1hr as fallback
+                            const ct = currentMarket._commence_time || '';
+                            if (ct) {
+                                sportsTipoffTs = Math.floor(new Date(ct.replace('Z','')+'Z').getTime()/1000);
+                            } else {
+                                const bdl = currentMarket.betting_deadline || '';
+                                sportsTipoffTs = Math.floor(new Date(bdl.replace('Z','')+'Z').getTime()/1000) + 3600;
+                            }
+                        } catch(e) {}
+                    }
+
                     let sweatModalInterval = window._sweatModalInterval = setInterval(() => {
-                        // Update countdown timer (all categories)
+                        // Update countdown timer — skip if sports game clock has taken over
                         const timerEl = document.getElementById('sweat-modal-timer');
+                        if (timerEl && timerEl.dataset.sportsOverride === 'true') return;
+                        const nowSec = Math.floor(Date.now() / 1000);
+                        // Sports pre-game: count down to tip-off, not 90-day deadline
+                        // Re-check _commence_time in case it arrived after interval started
+                        if ((currentMarket.category||'bitcoin') === 'sports' && currentMarket._commence_time) {
+                            try { 
+                                const newTs = Math.floor(new Date(currentMarket._commence_time.replace('Z','')+'Z').getTime()/1000);
+                                if (newTs !== sportsTipoffTs) sportsTipoffTs = newTs;
+                            } catch(e) {}
+                        }
+                        if ((currentMarket.category||'bitcoin') === 'sports' && sportsTipoffTs) {
+                            if (nowSec < sportsTipoffTs) {
+                                const left = sportsTipoffTs - nowSec;
+                                timerEl.textContent = fmtCountdown(left);
+                                timerEl.style.color = '#f59e0b';
+                            } else {
+                                // Past tip-off — game is live, override takes over from ESPN fetch
+                                timerEl.dataset.sportsOverride = 'true';
+                                const labelEl = document.getElementById('sweat-modal-timer-label');
+                                if (labelEl) labelEl.textContent = '🏀 GAME IN PROGRESS';
+                                timerEl.textContent = 'LIVE';
+                                timerEl.style.color = 'var(--yes-green)';
+                                timerEl.style.fontSize = '1.8rem';
+                            }
+                            return;
+                        }
                         if (timerEl && sweatDeadlineTs) {
                             const left = sweatDeadlineTs - Math.floor(Date.now() / 1000);
                             timerEl.textContent = fmtCountdown(Math.max(0, left));
@@ -950,8 +1160,9 @@
                         }
 
                         // Price tracking only for bitcoin markets
-                        if ((currentMarket.category || 'bitcoin') !== 'bitcoin') return;
-                        // (sports: score polling handled by fetchLiveScore interval below)
+                        const _cat = currentMarket.category || 'bitcoin';
+                        if (_cat === 'sports') return;
+                        if (_cat === 'stocks') return; // handled by fetchLiveStockPrice below
 
                         // Stop if modal was closed
                         if (!document.getElementById('sweat-modal-price')) {
@@ -971,17 +1182,6 @@
                                 priceEl.textContent = formatted;
                                 priceEl.dataset.prev = livePrice;
 
-                                // Update extreme tracker (highest for up, lowest for down)
-                                const extremeEl = document.getElementById('sweat-modal-extreme');
-                                if (extremeEl) {
-                                    const cur = parseFloat(extremeEl.dataset.val) || (isDown ? Infinity : 0);
-                                    const newExtreme = isDown ? (livePrice < cur) : (livePrice > cur);
-                                    if (newExtreme || !extremeEl.dataset.val) {
-                                        extremeEl.dataset.val = livePrice;
-                                        extremeEl.textContent = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
-                                    }
-                                }
-
                                 // Update progress bar
                                 const pct = calcPct(livePrice);
                                 const barEl = document.getElementById('sweat-modal-bar');
@@ -993,6 +1193,37 @@
 
                         // (countdown updated at top of interval for all categories)
                     }, 1000);
+
+                // ── Live price polling for stocks markets ─────────────────────────
+                if ((currentMarket.category || 'bitcoin') === 'stocks') {
+                    async function fetchLiveStockPrice() {
+                        const priceEl = document.getElementById('sweat-modal-price');
+                        if (!priceEl) return;
+                        try {
+                            const r = await fetch(API_BASE + '/market/' + currentMarket.id + '/live-score');
+                            const d = await r.json();
+                            if (d.current_price != null) {
+                                const livePrice = d.current_price;
+                                const prev = parseFloat(priceEl.dataset.prev) || livePrice;
+                                const formatted = '$' + livePrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+                                priceEl.style.color = livePrice > prev ? 'var(--yes-green)' : livePrice < prev ? 'var(--no-red)' : 'white';
+                                setTimeout(() => { if (priceEl) priceEl.style.color = 'white'; }, 500);
+                                priceEl.textContent = formatted;
+                                priceEl.dataset.prev = livePrice;
+                                const pct = calcPct(livePrice);
+                                const barEl = document.getElementById('sweat-modal-bar');
+                                const pctEl = document.getElementById('sweat-modal-pct');
+                                if (barEl) barEl.style.width = pct.toFixed(1) + '%';
+                                if (pctEl) pctEl.textContent = pct.toFixed(1) + '% of target';
+                            }
+                        } catch(e) {}
+                    }
+                    fetchLiveStockPrice();
+                    const stockPriceInterval = setInterval(() => {
+                        if (!document.getElementById('sweat-modal-price')) { clearInterval(stockPriceInterval); return; }
+                        fetchLiveStockPrice();
+                    }, 30000);
+                }
 
                 // ── Live score polling for sports markets ──────────────────────────
                 if ((currentMarket.category || 'bitcoin') === 'sports') {
@@ -1009,6 +1240,8 @@
                             }
 
                             const { status, home_team, away_team, home_score, away_score, commence_time } = d;
+                            // Cache commence_time on currentMarket so timer can use it
+                            if (commence_time && currentMarket) currentMarket._commence_time = commence_time;
 
                             if (status === 'pre_game' || (home_score === null && away_score === null)) {
                                 const nowMs = Date.now();
@@ -1083,6 +1316,40 @@
                                     <div style="text-align:center;margin-top:10px;color:#444;font-size:0.7rem;">
                                         YES = ${home_team} wins &nbsp;·&nbsp; NO = ${away_team} wins
                                     </div>`;
+
+                                // Replace countdown timer with ESPN game clock when live
+                                const timerBox = document.getElementById('sweat-modal-timer');
+                                const timerLabel = timerBox ? timerBox.previousElementSibling : null;
+                                const timerEnds = timerBox ? timerBox.parentElement.nextElementSibling : null;
+                                if (timerBox && status === 'in_progress') {
+                                    timerBox.dataset.sportsOverride = 'true';
+                                    timerLabel.textContent = 'Game clock';
+                                    timerBox.textContent = period_label || 'LIVE';
+                                    timerBox.style.fontSize = '1.3rem';
+                                    timerBox.style.color = '#f59e0b';
+                                    if (timerEnds) timerEnds.style.display = 'none';
+                                } else if (timerBox && status === 'completed') {
+                                    timerBox.dataset.sportsOverride = 'true';
+                                    timerLabel.textContent = 'Game status';
+                                    timerBox.textContent = 'FINAL';
+                                    timerBox.style.color = 'var(--yes-green)';
+                                    timerBox.style.fontSize = '1.3rem';
+                                    if (timerEnds) timerEnds.style.display = 'none';
+                                } else if (timerBox && status === 'pre_game') {
+                                    // Show countdown to tip-off in the timer box, not 90-day deadline
+                                    timerBox.dataset.sportsOverride = 'true';
+                                    const startTs = d.commence_time
+                                        ? Math.floor(new Date(d.commence_time.replace('Z','')+'Z').getTime()/1000) : 0;
+                                    const nowSec2 = Math.floor(Date.now()/1000);
+                                    const leftToTipoff = startTs ? Math.max(0, startTs - nowSec2) : 0;
+                                    const sportLabel2 = (currentMarket.question||'').toLowerCase().includes('nfl') ? '🏈 Kickoff in' : '🏀 Tip-off in';
+                                    if (timerLabel) timerLabel.textContent = sportLabel2;
+                                    timerBox.textContent = leftToTipoff > 0 ? fmtCountdown(leftToTipoff) : 'Starting soon';
+                                    timerBox.style.fontSize = '1.6rem';
+                                    timerBox.style.color = '#f59e0b';
+                                    const endsEl = timerBox.parentElement ? timerBox.parentElement.nextElementSibling : null;
+                                    if (endsEl) endsEl.style.display = 'none';
+                                }
                             }
                         } catch(e) {
                             const p = document.getElementById('score-panel');
@@ -1375,7 +1642,8 @@
         }
 
         loadMarkets();
-        setInterval(loadMarkets, 30000);
+        // Stagger polling with random jitter so multiple users don't hammer the server simultaneously
+        setTimeout(() => { setInterval(loadMarkets, 45000); }, Math.random() * 20000);
 
         // ============================================
         // BTC LIVE PRICE TICKER
